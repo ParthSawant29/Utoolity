@@ -13,7 +13,6 @@ import {
   WifiOff,
 } from "lucide-react";
 import { api, ApiError } from "../../lib/api";
-import { getDeviceHostname } from "../../lib/device-hostname";
 import { useClock } from "../shared/useClock";
 type LockProfile = {
   id: string;
@@ -61,7 +60,7 @@ function getInitialProfile(hostname = ""): LockProfile {
   return {
     id: "unknown",
     hostname,
-    displayName: hostname ? "Loading profile..." : "Assigned workstation",
+    displayName: hostname ? "Loading profile..." : "Sign in to Utoolity",
     locked: true,
   };
 }
@@ -171,12 +170,16 @@ function Lockcard({
   }, [wallpaperUrl]);
   useEffect(() => {
     let active = true;
+
     async function loadProfile() {
+      let authenticatedUser: LockProfileResponse["user"] | undefined;
       let hasAuthenticatedSession = initialAuthenticated;
+
       if (!initialAuthenticated) {
         try {
-          await api("/api/auth/me");
-          hasAuthenticatedSession = true;
+          const current = await api<LockProfileResponse>("/api/auth/me");
+          authenticatedUser = current.user;
+          hasAuthenticatedSession = Boolean(current.user);
         } catch (cause) {
           const message = cause instanceof Error ? cause.message : "";
           const isExpectedUnauthenticated =
@@ -188,31 +191,36 @@ function Lockcard({
           }
         }
       }
+
       if (!active) return;
       setAuthenticated(hasAuthenticatedSession);
       setLockscreenState(
         hasAuthenticatedSession && initialState === "sleep" ? "sleep" : "locked",
       );
-      const injectedHostname = (
-        window as Window & { __UTOOLITY_DEVICE_HOSTNAME__?: string }
-      ).__UTOOLITY_DEVICE_HOSTNAME__?.trim();
+
       const savedHostname = window.localStorage
         .getItem(HOSTNAME_STORAGE_KEY)
         ?.trim();
+      const configuredHostname = authenticatedUser?.hostname || savedHostname || "";
 
-      // Resolve the workstation hostname from the no-store local endpoint first.
-      // Injected and saved values are fallbacks only, because they may be stale.
-      let detectedHostname = "";
-      try {
-        detectedHostname = (await getDeviceHostname()).trim();
-      } catch (cause) {
-        console.warn("Could not detect the workstation hostname:", cause);
+      if (authenticatedUser) {
+        setProfile({ ...authenticatedUser, locked: true });
+        setHostname(authenticatedUser.hostname);
+        window.localStorage.setItem(HOSTNAME_STORAGE_KEY, authenticatedUser.hostname);
+        setError("");
+        setLoadingProfile(false);
+        return;
       }
-      if (!active) return;
 
-      const configuredHostname =
-        detectedHostname || injectedHostname || savedHostname || "new";
+      if (!configuredHostname) {
+        setProfile(getInitialProfile());
+        setHostname("");
+        setError("");
+        setLoadingProfile(false);
+        return;
+      }
 
+      setHostname(configuredHostname);
       try {
         const response = await api<LockProfileResponse>(
           `/api/lockscreen/me?hostname=${encodeURIComponent(configuredHostname)}`,
@@ -225,16 +233,11 @@ function Lockcard({
         setProfile({ ...response.user, locked: true });
         setHostname(response.user.hostname);
         window.localStorage.setItem(HOSTNAME_STORAGE_KEY, response.user.hostname);
-        setError(
-          configuredHostname !== response.user.hostname
-            ? "The workstation hostname changed. Sign in using the displayed account or update the assigned hostname."
-            : "",
-        );
+        setError("");
       } catch (cause) {
         if (!active) return;
         console.error("Failed to load lockscreen profile:", cause);
         setProfile(getInitialProfile(configuredHostname));
-        setHostname("");
         setError(
           cause instanceof Error
             ? `Unable to load the device profile: ${cause.message}`
@@ -244,6 +247,7 @@ function Lockcard({
         if (active) setLoadingProfile(false);
       }
     }
+
     void loadProfile();
     return () => {
       active = false;
@@ -252,7 +256,7 @@ function Lockcard({
         clearTimeout(transitionTimerRef.current);
       }
     };
-  }, [clearInactivityTimer]);
+  }, [clearInactivityTimer, initialAuthenticated, initialState]);
   useEffect(() => {
     const syncShellState = (event: Event) => {
       const state = (event as CustomEvent<LockscreenState>).detail;
@@ -430,8 +434,19 @@ function Lockcard({
               className="mt-8 flex w-full max-w-sm flex-col items-center"
             >
               <p className="mb-4 text-sm font-medium tracking-wide text-background/80">
-                Enter password to unlock
+                Sign in to unlock
               </p>
+              <input
+                _aria-label_="Account hostname or username"
+                type="text"
+                value={hostname}
+                onChange={(event) => setHostname(event.target.value)}
+                placeholder="Assigned hostname / username"
+                autoComplete="username"
+                autoFocus
+                disabled={loadingProfile || checking}
+                className="mb-3 w-full rounded-2xl border border-border/70 bg-input/70 px-5 py-3 text-center text-base text-foreground outline-none backdrop-blur-xl placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/35 disabled:opacity-50"
+              />
               <input
                 _aria-label_="Password"
                 type="password"
@@ -439,8 +454,7 @@ function Lockcard({
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="••••••••"
                 autoComplete="current-password"
-                autoFocus
-                disabled={loadingProfile || checking || !hostname}
+                disabled={loadingProfile || checking}
                 className="w-full rounded-2xl border border-border/70 bg-input/70 px-5 py-4 text-center font-mono text-3xl tracking-[0.45em] text-foreground outline-none backdrop-blur-xl placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/35 disabled:opacity-50"
               />
               <button
