@@ -55,6 +55,7 @@ await app.register(cors, {
     "Content-Type",
     "Authorization",
     "X-Requested-With",
+    "X-Utoolity-Device-Id",
   ],
   exposedHeaders: [
     "Content-Disposition",
