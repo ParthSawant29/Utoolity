@@ -1,3 +1,7 @@
 {
-  "workspaces": {}
+  "workspaces": {
+    "L-MHP-IXMT2": {
+      "openApps": []
+    }
+  }
 }

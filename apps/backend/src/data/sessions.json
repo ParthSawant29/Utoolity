@@ -1,3 +1,15 @@
 {
-  "sessions": {}
+  "sessions": {
+    "L-MHP-IXMT2": {
+      "userId": "L-MHP-IXMT2",
+      "hostname": "L-MHP-IXMT2",
+      "displayName": "Harshal Chaudhari",
+      "deviceId": "5C:87:9C:EF:FC:7C",
+      "role": "intern",
+      "active": true,
+      "activeApps": [],
+      "lastActivityAt": 1791987507110,
+      "updatedAt": 1791987507113
+    }
+  }
 }
