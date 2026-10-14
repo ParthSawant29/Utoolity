@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import session from "@fastify/session";
 import multipart from "@fastify/multipart";
+import websocket from "@fastify/websocket";
 
 import authRoutes from "./routes/auth.routes.js";
 import videoToImagesRoutes from "./routes/videoToImages.routes.js";
@@ -84,6 +85,9 @@ await app.register(multipart, {
     fileSize: 2 * 1024 * 1024 * 1024,
   },
 });
+
+// Register WebSocket support before registering any WebSocket routes.
+await app.register(websocket);
 
 // Health check
 app.get("/health", async () => ({
