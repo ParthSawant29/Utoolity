@@ -98,6 +98,7 @@ async function updateSessionRecord(
     const sessions = await readSessions();
     const now = Date.now();
     const recordKey = `${user.id}:${deviceId}`;
+    delete sessions[user.id];
     sessions[recordKey] = {
       userId: user.id,
       hostname: user.hostname,
