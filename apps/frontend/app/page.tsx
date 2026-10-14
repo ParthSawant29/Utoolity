@@ -170,7 +170,7 @@ export default function Home() {
         window.removeEventListener(event, recordActivity),
       );
     };
-  }, [shellState]);
+  }, [shellState, sendSocketActivity]);
 
   useEffect(() => {
     const startWork = () => {
@@ -190,7 +190,7 @@ export default function Home() {
       window.removeEventListener("utoolity:work-started", startWork);
       window.removeEventListener("utoolity:work-finished", finishWork);
     };
-  }, []);
+  }, [sendSocketActivity]);
 
   useEffect(() => {
     const handleAuthExpired = () => {
