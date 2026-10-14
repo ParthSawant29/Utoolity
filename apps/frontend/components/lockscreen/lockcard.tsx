@@ -13,7 +13,6 @@ import {
   WifiOff,
 } from "lucide-react";
 import { api, ApiError } from "../../lib/api";
-import { getDeviceHostname } from "@/lib/device-hostname";
 import { useClock } from "../shared/useClock";
 type LockProfile = {
   id: string;
@@ -199,53 +198,35 @@ function Lockcard({
       const savedHostname = window.localStorage
         .getItem(HOSTNAME_STORAGE_KEY)
         ?.trim();
-      let frontendHostname = "";
-      try {
-        frontendHostname = (await getDeviceHostname()).trim();
-      } catch (cause) {
-        console.error("Could not resolve frontend hostname:", cause);
-      }
-      const deviceHostname =
-        frontendHostname || injectedHostname || savedHostname || "";
+
+      // The Next.js process hostname identifies the web server, not the browser workstation.
+      // Use the configured intern hostname when available; otherwise use the account
+      // record currently maintained in users.json (hostname: "new").
+      const configuredHostname = injectedHostname || savedHostname || "new";
       if (!active) return;
-      setHostname(deviceHostname);
-      if (!deviceHostname) {
-        setProfile({
-          id: "unknown",
-          hostname: "",
-          displayName: "Device not identified",
-          locked: true,
-        });
-        setError("This device has no assigned workstation identity.");
-        setLoadingProfile(false);
-        return;
-      }
-      setProfile(getInitialProfile(deviceHostname));
+
       try {
         const response = await api<LockProfileResponse>(
-          `/api/lockscreen/me?hostname=${encodeURIComponent(deviceHostname)}`,
+          `/api/lockscreen/me?hostname=${encodeURIComponent(configuredHostname)}`,
         );
         if (!active) return;
-        const user = response.user;
-        if (!user) {
-          setProfile({
-            id: "guest-intern",
-            hostname: "guest-intern",
-            displayName: "Guest Intern",
-            locked: true,
-          });
-          setHostname("guest-intern");
-          setError("This workstation is not registered. Using Guest Intern.");
-        } else {
-          setProfile({ ...user, locked: true });
-          setHostname(user.hostname);
-          window.localStorage.setItem(HOSTNAME_STORAGE_KEY, user.hostname);
-          setError("");
+        if (!response.user || response.user.id === "guest-intern") {
+          throw new Error("The configured intern account could not be loaded.");
         }
+
+        setProfile({ ...response.user, locked: true });
+        setHostname(response.user.hostname);
+        window.localStorage.setItem(HOSTNAME_STORAGE_KEY, response.user.hostname);
+        setError(
+          configuredHostname !== response.user.hostname
+            ? "The workstation hostname changed. Sign in using the displayed account or update the assigned hostname."
+            : "",
+        );
       } catch (cause) {
         if (!active) return;
         console.error("Failed to load lockscreen profile:", cause);
-        setProfile(getInitialProfile(deviceHostname));
+        setProfile(getInitialProfile(configuredHostname));
+        setHostname("");
         setError(
           cause instanceof Error
             ? `Unable to load the device profile: ${cause.message}`
