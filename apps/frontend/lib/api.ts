@@ -1,6 +1,20 @@
 
 const API_URL = "";
 
+function getDeviceId(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+
+  const key = "utoolity.device-id";
+  const stored = window.localStorage.getItem(key);
+  if (stored) return stored;
+
+  const id = typeof window.crypto?.randomUUID === "function"
+    ? window.crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  window.localStorage.setItem(key, id);
+  return id;
+}
+
 export class ApiError extends Error {
   readonly status: number;
 
@@ -22,6 +36,8 @@ export async function api<T>(
     options.body instanceof FormData;
 
   const headers = new Headers(options.headers);
+  const deviceId = getDeviceId();
+  if (deviceId) headers.set("X-Utoolity-Device-Id", deviceId);
 
   if (isFormData) {
     // Let the browser set the multipart boundary.
