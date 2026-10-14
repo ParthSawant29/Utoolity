@@ -1,19 +1,13 @@
-import type { NextConfig } from "next";
 
-const backendUrl = (
-  process.env.BACKEND_URL || "http://127.0.0.1:4000"
-).replace(/\/+$/, "");
+import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
-  async rewrites() {
-    return [
-      {
-        source: "/api/:path*",
-        destination: `${backendUrl}/api/:path*`,
-      },
-    ];
-  },
+  allowedDevOrigins: [
+    "172.31.*.*",
+    "localhost",
+    "127.0.0.1",
+  ],
 };
 
 export default nextConfig;
