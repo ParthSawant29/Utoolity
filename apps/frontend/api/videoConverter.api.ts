@@ -84,12 +84,6 @@ export const videoConverterApi = {
   },
 
   getDownloadUrl(jobId: string): string {
-    const baseUrl =
-      (globalThis as typeof globalThis & {
-        process?: { env?: { NEXT_PUBLIC_API_URL?: string } };
-      }).process?.env?.NEXT_PUBLIC_API_URL ||
-      "http://localhost:5000/api";
-
-    return `${baseUrl}/tools/video-converter/download/${jobId}`;
+    return `/api/tools/video-converter/download/${encodeURIComponent(jobId)}`;
   },
 };

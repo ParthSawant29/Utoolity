@@ -13,6 +13,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import { api, ApiError } from "../../lib/api";
+import { getDeviceHostname } from "../../lib/device-hostname";
 import { useClock } from "../shared/useClock";
 type LockProfile = {
   id: string;
@@ -199,11 +200,18 @@ function Lockcard({
         .getItem(HOSTNAME_STORAGE_KEY)
         ?.trim();
 
-      // The Next.js process hostname identifies the web server, not the browser workstation.
-      // Use the configured intern hostname when available; otherwise use the account
-      // record currently maintained in users.json (hostname: "new").
-      const configuredHostname = injectedHostname || savedHostname || "new";
+      // Resolve the workstation hostname from the no-store local endpoint first.
+      // Injected and saved values are fallbacks only, because they may be stale.
+      let detectedHostname = "";
+      try {
+        detectedHostname = (await getDeviceHostname()).trim();
+      } catch (cause) {
+        console.warn("Could not detect the workstation hostname:", cause);
+      }
       if (!active) return;
+
+      const configuredHostname =
+        detectedHostname || injectedHostname || savedHostname || "new";
 
       try {
         const response = await api<LockProfileResponse>(

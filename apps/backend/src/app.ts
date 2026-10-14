@@ -53,7 +53,13 @@ await app.register(cors, {
   allowedHeaders: [
     "Content-Type",
     "Authorization",
+    "X-Requested-With",
   ],
+  exposedHeaders: [
+    "Content-Disposition",
+    "Content-Length",
+  ],
+  maxAge: 86400,
 });
 
 await app.register(cookie);
