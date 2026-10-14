@@ -1,7 +1,7 @@
 
 const API_URL = "";
 
-function getDeviceId(): string | undefined {
+export function getDeviceId(): string | undefined {
   if (typeof window === "undefined") return undefined;
 
   const key = "utoolity.device-id";
