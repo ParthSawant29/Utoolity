@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Desktop from "@/components/desktop/Desktop";
 import Lockcard from "@/components/lockscreen/LockcardEntry";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, getDeviceId } from "@/lib/api";
 import Image from "next/image";
 
 type ShellState = "checking" | "authenticated" | "sleep" | "locked";
@@ -18,6 +18,74 @@ export default function Home() {
   const [shellState, setShellState] = useState<ShellState>("checking");
   const lastActivityRef = useRef(Date.now());
   const busyRef = useRef(false);
+  const socketRef = useRef<WebSocket | null>(null);
+  const socketRetryRef = useRef<number | undefined>(undefined);
+  const lastSocketActivityRef = useRef(0);
+  const shellStateRef = useRef(shellState);
+  shellStateRef.current = shellState;
+
+  const sendSocketActivity = () => {
+    const socket = socketRef.current;
+    if (!socket || socket.readyState !== WebSocket.OPEN) return;
+    const now = Date.now();
+    if (now - lastSocketActivityRef.current < 10_000) return;
+    lastSocketActivityRef.current = now;
+    socket.send(JSON.stringify({ type: "activity", deviceId: getDeviceId() }));
+  };
+
+  const connectSocketRef = useRef<() => void>(() => undefined);
+  const connectActivitySocket = () => {
+    const existing = socketRef.current;
+    if (existing && (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+    if (socketRetryRef.current !== undefined) {
+      window.clearTimeout(socketRetryRef.current);
+      socketRetryRef.current = undefined;
+    }
+
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const socket = new WebSocket(`${protocol}//${window.location.hostname}:4000/api/auth/socket`);
+    socketRef.current = socket;
+
+    socket.addEventListener("open", () => {
+      if (socketRef.current !== socket) {
+        socket.close();
+        return;
+      }
+      lastSocketActivityRef.current = 0;
+      sendSocketActivity();
+    });
+    socket.addEventListener("close", (event) => {
+      if (socketRef.current === socket) socketRef.current = null;
+      if (event.code !== 1008 && shellStateRef.current !== "checking") {
+        socketRetryRef.current = window.setTimeout(() => {
+          socketRetryRef.current = undefined;
+          connectSocketRef.current();
+        }, 3000);
+      }
+    });
+    socket.addEventListener("error", () => socket.close());
+  };
+  connectSocketRef.current = connectActivitySocket;
+
+  useEffect(() => {
+    if (shellState !== "checking") connectActivitySocket();
+  }, [shellState]);
+
+  useEffect(() => {
+    const activityEvents = ["pointerdown", "keydown", "mousemove", "touchstart"];
+    activityEvents.forEach((event) =>
+      window.addEventListener(event, sendSocketActivity, { passive: true }),
+    );
+    return () => {
+      activityEvents.forEach((event) =>
+        window.removeEventListener(event, sendSocketActivity),
+      );
+      socketRef.current?.close(1000, "Page closed");
+      if (socketRetryRef.current !== undefined) window.clearTimeout(socketRetryRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -83,6 +151,7 @@ export default function Home() {
     const recordActivity = () => {
       lastActivityRef.current = Date.now();
       sessionStorage.setItem(LAST_ACTIVITY_KEY, String(lastActivityRef.current));
+      sendSocketActivity();
     };
     const activityEvents = ["pointerdown", "keydown", "mousemove", "touchstart"];
     activityEvents.forEach((event) =>
@@ -95,13 +164,8 @@ export default function Home() {
       sessionStorage.setItem(SLEEP_STARTED_KEY, String(Date.now()));
       setShellState("sleep");
     }, 1000);
-    const heartbeat = window.setInterval(() => {
-      void api("/api/auth/activity").catch(() => undefined);
-    }, 30_000);
-
     return () => {
       window.clearInterval(timer);
-      window.clearInterval(heartbeat);
       activityEvents.forEach((event) =>
         window.removeEventListener(event, recordActivity),
       );
@@ -118,7 +182,7 @@ export default function Home() {
       busyRef.current = false;
       lastActivityRef.current = Date.now();
       sessionStorage.setItem(LAST_ACTIVITY_KEY, String(lastActivityRef.current));
-      void api("/api/auth/activity").catch(() => undefined);
+      sendSocketActivity();
     };
     window.addEventListener("utoolity:work-started", startWork);
     window.addEventListener("utoolity:work-finished", finishWork);
