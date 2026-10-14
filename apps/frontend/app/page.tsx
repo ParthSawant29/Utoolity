@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Desktop from "@/components/desktop/Desktop";
 import Lockcard from "@/components/lockscreen/LockcardEntry";
 import { api, ApiError, getDeviceId } from "@/lib/api";
@@ -24,17 +24,17 @@ export default function Home() {
   const shellStateRef = useRef(shellState);
   shellStateRef.current = shellState;
 
-  const sendSocketActivity = () => {
+  const sendSocketActivity = useCallback(() => {
     const socket = socketRef.current;
     if (!socket || socket.readyState !== WebSocket.OPEN) return;
     const now = Date.now();
     if (now - lastSocketActivityRef.current < 10_000) return;
     lastSocketActivityRef.current = now;
     socket.send(JSON.stringify({ type: "activity", deviceId: getDeviceId() }));
-  };
+  }, []);
 
   const connectSocketRef = useRef<() => void>(() => undefined);
-  const connectActivitySocket = () => {
+  const connectActivitySocket = useCallback(() => {
     const existing = socketRef.current;
     if (existing && (existing.readyState === WebSocket.OPEN || existing.readyState === WebSocket.CONNECTING)) {
       return;
@@ -58,20 +58,20 @@ export default function Home() {
     });
     socket.addEventListener("close", (event) => {
       if (socketRef.current === socket) socketRef.current = null;
-      if (event.code !== 1008 && shellStateRef.current !== "checking") {
+      if (event.code !== 1008 && event.code !== 1000 && shellStateRef.current !== "checking") {
         socketRetryRef.current = window.setTimeout(() => {
           socketRetryRef.current = undefined;
           connectSocketRef.current();
         }, 3000);
       }
     });
-    socket.addEventListener("error", () => socket.close());
-  };
+    socket.addEventListener("error", () => socket.close(4000, "Connection error"));
+  }, [sendSocketActivity]);
   connectSocketRef.current = connectActivitySocket;
 
   useEffect(() => {
     if (shellState !== "checking") connectActivitySocket();
-  }, [shellState]);
+  }, [shellState, connectActivitySocket]);
 
   useEffect(() => {
     const activityEvents = ["pointerdown", "keydown", "mousemove", "touchstart"];
@@ -85,7 +85,7 @@ export default function Home() {
       socketRef.current?.close(1000, "Page closed");
       if (socketRetryRef.current !== undefined) window.clearTimeout(socketRetryRef.current);
     };
-  }, []);
+  }, [sendSocketActivity]);
 
   useEffect(() => {
     let active = true;
