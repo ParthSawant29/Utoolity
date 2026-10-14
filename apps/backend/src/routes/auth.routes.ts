@@ -99,14 +99,14 @@ async function updateSessionRecord(
     const now = Date.now();
     const recordKey = `${user.id}:${deviceId}`;
     sessions[recordKey] = {
-    userId: user.id,
-    hostname: user.hostname,
-    displayName: user.displayName,
-    deviceId,
-    role: user.role,
-    ...values,
-    updatedAt: now,
-  };
+      userId: user.id,
+      hostname: user.hostname,
+      displayName: user.displayName,
+      deviceId,
+      role: user.role,
+      ...values,
+      updatedAt: now,
+    };
     await writeSessions(sessions);
   });
   sessionUpdateQueue = write.catch(() => undefined);
@@ -475,7 +475,6 @@ export default async function authRoutes(app: FastifyInstance) {
 
     let deviceId = "pending-device";
     let inactivityTimer: ReturnType<typeof setTimeout> | undefined;
-    let closed = false;
 
     const persistActivity = async (active: boolean) => {
       try {
@@ -521,7 +520,6 @@ export default async function authRoutes(app: FastifyInstance) {
     });
 
     socket.on("close", () => {
-      closed = true;
       if (inactivityTimer) clearTimeout(inactivityTimer);
       void persistActivity(false);
     });
