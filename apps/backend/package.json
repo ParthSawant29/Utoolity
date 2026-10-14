@@ -15,6 +15,7 @@
     "@fastify/cors": "catalog:",
     "@fastify/multipart": "catalog:",
     "@fastify/session": "catalog:",
+    "@fastify/websocket": "catalog:",
     "dotenv": "catalog:",
     "fastify": "catalog:",
     "fluent-ffmpeg": "catalog:",
