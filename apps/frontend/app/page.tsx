@@ -22,7 +22,6 @@ export default function Home() {
   const socketRetryRef = useRef<number | undefined>(undefined);
   const lastSocketActivityRef = useRef(0);
   const shellStateRef = useRef(shellState);
-  shellStateRef.current = shellState;
 
   const sendSocketActivity = useCallback(() => {
     const socket = socketRef.current;
@@ -68,6 +67,10 @@ export default function Home() {
     socket.addEventListener("error", () => socket.close(4000, "Connection error"));
   }, [sendSocketActivity]);
   connectSocketRef.current = connectActivitySocket;
+
+  useEffect(() => {
+    shellStateRef.current = shellState;
+  }, [shellState]);
 
   useEffect(() => {
     if (shellState !== "checking") connectActivitySocket();
