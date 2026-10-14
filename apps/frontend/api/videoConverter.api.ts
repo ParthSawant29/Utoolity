@@ -63,11 +63,6 @@ export const videoConverterApi = {
     const { data } = await api.post(
       "/tools/video-converter",
       formData,
-      {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      },
     );
 
     return data;
