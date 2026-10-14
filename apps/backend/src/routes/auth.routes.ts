@@ -79,22 +79,38 @@ async function writeSessions(sessions: Record<string, SessionRecord>): Promise<v
   );
 }
 
+let sessionUpdateQueue: Promise<void> = Promise.resolve();
+
+function getDeviceId(request: FastifyRequest, fallback: string): string {
+  const candidate = request.headers["x-utoolity-device-id"];
+  if (typeof candidate === "string" && /^[a-zA-Z0-9._:-]{8,128}$/.test(candidate)) {
+    return candidate;
+  }
+  return fallback;
+}
+
 async function updateSessionRecord(
   user: InternUser,
   values: Pick<SessionRecord, "active" | "activeApps" | "lastActivityAt">,
+  deviceId = user.macId,
 ): Promise<void> {
-  const sessions = await readSessions();
-  const now = Date.now();
-  sessions[user.id] = {
+  const write = sessionUpdateQueue.then(async () => {
+    const sessions = await readSessions();
+    const now = Date.now();
+    const recordKey = `${user.id}:${deviceId}`;
+    sessions[recordKey] = {
     userId: user.id,
     hostname: user.hostname,
     displayName: user.displayName,
-    deviceId: user.macId,
+    deviceId,
     role: user.role,
     ...values,
     updatedAt: now,
   };
-  await writeSessions(sessions);
+    await writeSessions(sessions);
+  });
+  sessionUpdateQueue = write.catch(() => undefined);
+  await write;
 }
 
 const usersFilePath = fileURLToPath(
@@ -236,11 +252,14 @@ export default async function authRoutes(app: FastifyInstance) {
     const activeApps = request.body && Array.isArray(request.body.openApps)
       ? request.body.openApps
       : [];
+    const deviceId = getDeviceId(request, user.macId);
+    const currentSessions = await readSessions();
+    const existing = currentSessions[`${user.id}:${deviceId}`] ?? currentSessions[user.id];
     await updateSessionRecord(user, {
       active: true,
-      activeApps,
+      activeApps: activeApps.length ? activeApps : existing?.activeApps ?? [],
       lastActivityAt: Date.now(),
-    });
+    }, deviceId);
     return { success: true };
   });
 
@@ -255,12 +274,13 @@ export default async function authRoutes(app: FastifyInstance) {
       const user = findById(users, session.userId);
       if (user) {
         const sessions = await readSessions();
-        const existing = sessions[user.id];
+        const deviceId = getDeviceId(request, user.macId);
+        const existing = sessions[`${user.id}:${deviceId}`] ?? sessions[user.id];
         await updateSessionRecord(user, {
           active: true,
           activeApps: existing?.activeApps ?? [],
           lastActivityAt: session.lastActivityAt,
-        });
+        }, deviceId);
       }
     } catch (error) {
       request.log.error(error, "Unable to persist session activity.");
@@ -294,7 +314,7 @@ export default async function authRoutes(app: FastifyInstance) {
           active: true,
           activeApps: [],
           lastActivityAt: Date.now(),
-        });
+        }, getDeviceId(request, user.macId));
 
         return {
           user: publicUser(user),
@@ -321,7 +341,7 @@ export default async function authRoutes(app: FastifyInstance) {
             active: false,
             activeApps: [],
             lastActivityAt: Date.now(),
-          });
+          }, getDeviceId(request, user.macId));
         }
       }
       await destroySession(request);
@@ -445,6 +465,73 @@ export default async function authRoutes(app: FastifyInstance) {
     },
   );
 
+  // WebSocket /api/auth/socket: one authenticated channel for device activity.
+  app.get("/auth/socket", { websocket: true }, (socket, request) => {
+    const userId = getSession(request).userId;
+    if (!userId) {
+      socket.close(1008, "Authentication required");
+      return;
+    }
+
+    let deviceId = "pending-device";
+    let inactivityTimer: ReturnType<typeof setTimeout> | undefined;
+    let closed = false;
+
+    const persistActivity = async (active: boolean) => {
+      try {
+        const user = findById(await readUsers(), userId);
+        if (!user) {
+          socket.close(1008, "Session user no longer exists");
+          return;
+        }
+        const sessions = await readSessions();
+        const existing = sessions[`${user.id}:${deviceId}`] ?? sessions[user.id];
+        await updateSessionRecord(user, {
+          active,
+          activeApps: existing?.activeApps ?? [],
+          lastActivityAt: active ? Date.now() : existing?.lastActivityAt ?? Date.now(),
+        }, deviceId === "pending-device" ? user.macId : deviceId);
+      } catch (error) {
+        request.log.error(error, "Unable to persist WebSocket activity");
+      }
+    };
+
+    const resetInactivityTimer = () => {
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      inactivityTimer = setTimeout(() => {
+        void persistActivity(false);
+      }, 5 * 60 * 1000);
+    };
+
+    socket.on("message", (raw) => {
+      let message: { type?: unknown; deviceId?: unknown };
+      try {
+        message = JSON.parse(raw.toString()) as { type?: unknown; deviceId?: unknown };
+      } catch {
+        return;
+      }
+
+      if (typeof message.deviceId === "string" && /^[a-zA-Z0-9._:-]{8,128}$/.test(message.deviceId)) {
+        deviceId = message.deviceId;
+      }
+      if (message.type !== "activity" || deviceId === "pending-device") return;
+
+      resetInactivityTimer();
+      void persistActivity(true);
+    });
+
+    socket.on("close", () => {
+      closed = true;
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+      void persistActivity(false);
+    });
+    socket.on("error", (error) => {
+      request.log.warn({ err: error }, "Device activity WebSocket error");
+    });
+
+    socket.send(JSON.stringify({ type: "connected" }));
+  });
+
   // GET /api/lockscreen/me?hostname=L-MHP-IXMT2
   app.get<{
     Querystring: { hostname?: string };
@@ -512,6 +599,11 @@ export default async function authRoutes(app: FastifyInstance) {
         }
 
         await establishSession(request, user);
+        await updateSessionRecord(user, {
+          active: true,
+          activeApps: [],
+          lastActivityAt: Date.now(),
+        }, getDeviceId(request, user.macId));
 
         return {
           success: true,
