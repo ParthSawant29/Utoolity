@@ -3,14 +3,13 @@
 import Image from "next/image";
 import { useEffect, useState } from "react";
 
-type Wallpaper = { file: string; url: string };
+type Wallpaper = {
+  file: string;
+  url: string;
+  darkUrl?: string;
+  lightUrl?: string;
+};
 type Layer = { url: string; key: number };
-
-function findThemeWallpaper(wallpapers: Wallpaper[], theme: "dark" | "light") {
-  return wallpapers.find(({ file }) =>
-    new RegExp(`^${theme}\\.(avif|jpe?g|png|webp)$`, "i").test(file),
-  );
-}
 
 export default function DesktopBackground() {
   const [active, setActive] = useState<Layer | null>(null);
@@ -28,17 +27,17 @@ export default function DesktopBackground() {
     const apply = (nextTheme: "dark" | "light") => {
       const root = document.documentElement;
       const selected = root.dataset.wallpaper;
-      const selectedWallpaper =
-        findThemeWallpaper(available, nextTheme) ??
+      const wallpaper =
         available.find(({ file }) => file === selected) ??
+        available.find(({ darkUrl, lightUrl }) => Boolean(darkUrl || lightUrl)) ??
         available.find(({ file }) => file.toLowerCase() === "default.jpg") ??
         available[0];
 
       currentTheme = nextTheme;
       setTheme(nextTheme);
-      if (!selectedWallpaper) return;
+      if (!wallpaper) return;
 
-      const nextUrl = selectedWallpaper.url;
+      const nextUrl = (nextTheme === "dark" ? wallpaper.darkUrl : wallpaper.lightUrl) ?? wallpaper.url;
       if (currentLayer?.url === nextUrl) return;
       const nextLayer = { url: nextUrl, key: ++nextKey };
       setPrevious(currentLayer);
@@ -100,7 +99,7 @@ export default function DesktopBackground() {
       {previous && (
         <div
           key={previous.key}
-          className="absolute inset-0 bg-cover bg-center opacity-0 transition-opacity duration-700 ease-in-out"
+          className="absolute inset-0 bg-cover bg-center opacity-100"
           style={{ backgroundImage: `url("${previous.url}")` }}
         />
       )}
