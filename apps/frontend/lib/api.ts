@@ -102,9 +102,6 @@ export async function api<T>(
           ? body
           : `Request failed (${response.status}).`;
 
-    if (response.status === 401 && typeof window !== "undefined") {
-      window.dispatchEvent(new Event("utoolity:auth-expired"));
-    }
     throw new ApiError(message, response.status);
   }
 
