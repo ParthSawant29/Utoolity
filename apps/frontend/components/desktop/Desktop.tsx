@@ -20,10 +20,21 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
   const [expandedAppKey, setExpandedAppKey] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number } | null>(null);
   const [isDark, setIsDark] = useState(true);
+  const [desktopScale, setDesktopScale] = useState(1);
   const [openApps, setOpenApps] = useState<Array<{ app: DesktopAppId; filePath?: string; window?: WindowState }>>([]);
   const [activeAppKey, setActiveAppKey] = useState<string | null>(null);
   const [workspaceHydrated, setWorkspaceHydrated] = useState(false);
   const [workspaceUserId, setWorkspaceUserId] = useState<string | null>(null);
+  useEffect(() => {
+    const updateScale = () => {
+      const fitScale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+      setDesktopScale(Math.max(0.68, Math.min(1.35, fitScale)));
+    };
+    updateScale();
+    window.addEventListener("resize", updateScale);
+    return () => window.removeEventListener("resize", updateScale);
+  }, []);
+
   const openApp = (app: DesktopAppId, filePath?: string) => {
     const key = `${app}:${filePath ?? ""}`;
     setActiveAppKey(key);
@@ -265,6 +276,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
   return (
     <main
       className="desktop-canvas relative min-h-dvh select-none"
+      style={{ zoom: desktopScale }}
       onContextMenu={openMenu}
     >
       <DesktopBackground />
