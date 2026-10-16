@@ -28,7 +28,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
   useEffect(() => {
     const updateScale = () => {
       const fitScale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
-      setDesktopScale(Math.max(0.68, Math.min(1.35, fitScale)));
+      setDesktopScale(Math.max(0.68, fitScale));
     };
     updateScale();
     window.addEventListener("resize", updateScale);
