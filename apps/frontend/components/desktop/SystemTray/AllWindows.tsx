@@ -20,10 +20,19 @@ export default function AllWindows({ windows, onFocus, onClose }: Props) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="relative">
+    <div
+      className="relative"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) {
+          setOpen(false);
+        }
+      }}
+    >
       <button
         type="button"
-        onClick={() => setOpen((value) => !value)}
         title="All windows (Alt + A)"
         aria-label="All windows"
         aria-expanded={open}
@@ -41,7 +50,7 @@ export default function AllWindows({ windows, onFocus, onClose }: Props) {
         <section
           role="dialog"
           aria-label="Open windows"
-          className="absolute right-0 top-11 z-[90] w-[min(320px,calc(100vw-24px))] rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-2xl"
+          className="absolute right-0 top-11 z-90 w-[min(320px,calc(100vw-24px))] rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-2xl"
         >
           <header className="flex items-center justify-between px-2 py-1.5">
             <h2 className="text-sm font-semibold">Open windows</h2>
