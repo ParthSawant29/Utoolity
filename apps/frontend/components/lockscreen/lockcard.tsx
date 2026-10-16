@@ -212,27 +212,20 @@ function Lockcard({
         return;
       }
 
-      if (!configuredHostname) {
-        setProfile(getInitialProfile());
-        setHostname("");
-        setError("");
-        setLoadingProfile(false);
-        return;
-      }
-
       setHostname(configuredHostname);
       try {
-        const response = await api<LockProfileResponse>(
-          `/api/lockscreen/me?hostname=${encodeURIComponent(configuredHostname)}`,
-        );
+        // api() sends the persistent X-Utoolity-Device-Id header.
+        // Prefer the device assignment and retain saved-hostname compatibility.
+        const response = await api<LockProfileResponse>("/api/lockscreen/me");
         if (!active) return;
-        if (!response.user || response.user.id === "guest-intern") {
-          throw new Error("The configured intern account could not be loaded.");
+        const resolvedUser = response.user;
+        if (!resolvedUser || resolvedUser.id === "guest-intern") {
+          throw new Error("This device has not been assigned to an account yet.");
         }
 
-        setProfile({ ...response.user, locked: true });
-        setHostname(response.user.hostname);
-        window.localStorage.setItem(HOSTNAME_STORAGE_KEY, response.user.hostname);
+        setProfile({ ...resolvedUser, locked: true });
+        setHostname(resolvedUser.hostname);
+        window.localStorage.setItem(HOSTNAME_STORAGE_KEY, resolvedUser.hostname);
         setError("");
       } catch (cause) {
         if (!active) return;
@@ -315,7 +308,7 @@ function Lockcard({
   }, [clearInactivityTimer, lockscreenState, profile, startInactivityTimer]);
   const handleUnlock = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const assignedHostname = hostname.trim();
+    const assignedHostname = (profile?.hostname || hostname).trim();
     if (!assignedHostname || !password || checking || !profile) return;
     setChecking(true);
     setError("");
@@ -437,17 +430,6 @@ function Lockcard({
                 Sign in to unlock
               </p>
               <input
-                _aria-label_="Account hostname or username"
-                type="text"
-                value={hostname}
-                onChange={(event) => setHostname(event.target.value)}
-                placeholder="Assigned hostname / username"
-                autoComplete="username"
-                autoFocus
-                disabled={loadingProfile || checking}
-                className="mb-3 w-full rounded-2xl border border-border/70 bg-input/70 px-5 py-3 text-center text-base text-foreground outline-none backdrop-blur-xl placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/35 disabled:opacity-50"
-              />
-              <input
                 _aria-label_="Password"
                 type="password"
                 value={password}
@@ -460,7 +442,7 @@ function Lockcard({
               <button
                 type="submit"
                 _aria-label_="Unlock"
-                disabled={loadingProfile || checking || !password || !hostname}
+                disabled={loadingProfile || checking || !password || !profile?.hostname}
                 className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <ShieldCheck className="size-4" />
