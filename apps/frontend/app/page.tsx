@@ -195,17 +195,7 @@ export default function Home() {
     };
   }, [sendSocketActivity]);
 
-  useEffect(() => {
-    const handleAuthExpired = () => {
-      sessionStorage.removeItem(AUTHENTICATED_SESSION_KEY);
-      sessionStorage.setItem(SHELL_STATE_KEY, "locked");
-      setShellState("locked");
-    };
-
-    window.addEventListener("utoolity:auth-expired", handleAuthExpired);
-    return () =>
-      window.removeEventListener("utoolity:auth-expired", handleAuthExpired);
-  }, []);
+;
 
   useEffect(() => {
     if (shellState !== "sleep") return;
