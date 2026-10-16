@@ -216,9 +216,18 @@ function Lockcard({
       try {
         // api() sends the persistent X-Utoolity-Device-Id header.
         // Prefer the device assignment and retain saved-hostname compatibility.
-        const response = await api<LockProfileResponse>("/api/lockscreen/me");
+        let resolvedUser: LockProfileResponse["user"];
+        try {
+          const response = await api<LockProfileResponse>("/api/lockscreen/me");
+          resolvedUser = response.user;
+        } catch (deviceLookupError) {
+          if (!configuredHostname) throw deviceLookupError;
+          const fallback = await api<LockProfileResponse>(
+            `/api/lockscreen/me?hostname=${encodeURIComponent(configuredHostname)}`,
+          );
+          resolvedUser = fallback.user;
+        }
         if (!active) return;
-        const resolvedUser = response.user;
         if (!resolvedUser || resolvedUser.id === "guest-intern") {
           throw new Error("This device has not been assigned to an account yet.");
         }
