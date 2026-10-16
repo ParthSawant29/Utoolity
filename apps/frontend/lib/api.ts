@@ -52,7 +52,7 @@ export async function api<T>(
   let lastError: unknown;
   let proxyUnavailable = false;
 
-  for (let attempt = 0; attempt < 3; attempt += 1) {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
       const nextResponse = await fetch(
         `${API_URL.replace(/\\/+$/, "")}/${path.replace(/^\\/+/, "")}`,
@@ -68,8 +68,8 @@ export async function api<T>(
       // not as a rejected fetch. Retry only recognizable proxy-connect failures.
       if ([500, 502, 503, 504].includes(nextResponse.status)) {
         const upstreamError = await nextResponse.clone().text();
-        proxyUnavailable = /ECONNREFUSED|Failed to proxy|connect\\s+ECONNREFUSED|socket hang up/i.test(upstreamError);
-        if (proxyUnavailable && attempt < 2) {
+        proxyUnavailable = /ECONNREFUSED|Failed to proxy|connect\s+ECONNREFUSED|socket hang up/i.test(upstreamError);
+        if (proxyUnavailable && attempt < 4) {
           await new Promise((resolve) => window.setTimeout(resolve, 300 * (attempt + 1)));
           continue;
         }
@@ -79,7 +79,7 @@ export async function api<T>(
       break;
     } catch (error) {
       lastError = error;
-      if (attempt === 2) {
+      if (attempt === 4) {
         throw new Error(
           `Unable to reach the backend at ${API_URL || "the configured API proxy"}.`,
           { cause: error },
