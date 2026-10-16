@@ -276,7 +276,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
   return (
     <main
       className="desktop-canvas relative min-h-dvh select-none"
-      style={{ zoom: desktopScale, width: `calc(100vw / ${desktopScale})`, minHeight: `calc(100dvh / ${desktopScale})` }}
+      style={{ zoom: desktopScale, width: `${100 / desktopScale}vw`, minHeight: `${100 / desktopScale}dvh` }}
       onContextMenu={openMenu}
     >
       <DesktopBackground />
