@@ -195,7 +195,6 @@ export default function Home() {
     };
   }, [sendSocketActivity]);
 
-;
 
   useEffect(() => {
     if (shellState !== "sleep") return;
