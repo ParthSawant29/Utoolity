@@ -503,7 +503,7 @@ export default async function authRoutes(app: FastifyInstance) {
       }, 5 * 60 * 1000);
     };
 
-    socket.on("message", (raw) => {
+    socket.on("message", (raw: Buffer | ArrayBuffer | Buffer[]) => {
       let message: { type?: unknown; deviceId?: unknown };
       try {
         message = JSON.parse(raw.toString()) as { type?: unknown; deviceId?: unknown };
@@ -524,42 +524,53 @@ export default async function authRoutes(app: FastifyInstance) {
       if (inactivityTimer) clearTimeout(inactivityTimer);
       void persistActivity(false);
     });
-    socket.on("error", (error) => {
+    socket.on("error", (error: Error) => {
       request.log.warn({ err: error }, "Device activity WebSocket error");
     });
 
     socket.send(JSON.stringify({ type: "connected" }));
   });
 
-  // GET /api/lockscreen/me?hostname=L-MHP-IXMT2
+  // Resolve the lock-screen identity from the persistent device ID first.
+  // A previously assigned hostname remains supported for existing installs.
   app.get<{
     Querystring: { hostname?: string };
   }>("/lockscreen/me", async (request, reply) => {
     const hostname = request.query.hostname?.trim();
 
-    if (!hostname || hostname.length > 255) {
+    if (hostname && hostname.length > 255) {
       return reply.code(400).send({
-        message: "A valid hostname is required.",
+        message: "Invalid hostname.",
       });
     }
 
     try {
       const users = await readUsers();
-      const user = findByHostname(users, hostname);
+      let user = hostname ? findByHostname(users, hostname) : undefined;
 
       if (!user) {
-        const guestUser = findById(users, "guest-intern");
-        if (!guestUser) {
-          return reply.code(500).send({
-            message: "Guest Intern account is not configured.",
-          });
+        const deviceId = getDeviceId(request, "");
+        if (deviceId) {
+          const sessions = await readSessions();
+          const deviceSession = Object.values(sessions).find(
+            (session) => session.deviceId === deviceId,
+          );
+          if (deviceSession) {
+            user = findById(users, deviceSession.userId);
+          }
         }
-        return {
-          user: {
-            ...publicUser(guestUser),
-            locked: true,
-          },
-        };
+      }
+
+      if (!user && hostname) {
+        return reply.code(404).send({
+          message: "No account is assigned to this hostname.",
+        });
+      }
+
+      if (!user) {
+        return reply.code(404).send({
+          message: "This device has not been assigned to an account yet.",
+        });
       }
 
       return {
