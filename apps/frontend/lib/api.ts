@@ -70,7 +70,7 @@ export async function api<T>(
         const upstreamError = await nextResponse.clone().text();
         proxyUnavailable = /ECONNREFUSED|Failed to proxy|connect\s+ECONNREFUSED|socket hang up/i.test(upstreamError);
         if (proxyUnavailable && attempt < 4) {
-          await new Promise((resolve) => window.setTimeout(resolve, 300 * (attempt + 1)));
+          await new Promise((resolve) => window.setTimeout(resolve, 500 * (attempt + 1)));
           continue;
         }
       }
