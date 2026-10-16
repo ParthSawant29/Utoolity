@@ -28,8 +28,9 @@ export default function DesktopBackground() {
       const root = document.documentElement;
       const selected = root.dataset.wallpaper;
       const wallpaper =
-        available.find(({ file }) => file === selected) ??
+        available.find(({ file, darkUrl, lightUrl }) => file === selected && Boolean(darkUrl || lightUrl)) ??
         available.find(({ darkUrl, lightUrl }) => Boolean(darkUrl || lightUrl)) ??
+        available.find(({ file }) => file === selected) ??
         available.find(({ file }) => file.toLowerCase() === "default.jpg") ??
         available[0];
 
