@@ -28,7 +28,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function api<T>(
+async function performApi<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
@@ -146,6 +146,22 @@ export async function api<T>(
   }
 
   return body as T;
+}
+
+const pendingGetRequests = new Map<string, Promise<unknown>>();
+
+export function api<T>(path: string, options: RequestInit = {}): Promise<T> {
+  if ((options.method ?? "GET").toUpperCase() !== "GET") {
+    return performApi<T>(path, options);
+  }
+  const pending = pendingGetRequests.get(path);
+  if (pending) return pending as Promise<T>;
+
+  const request = performApi<T>(path, options).finally(() => {
+    if (pendingGetRequests.get(path) === request) pendingGetRequests.delete(path);
+  });
+  pendingGetRequests.set(path, request);
+  return request;
 }
 
 export { API_URL };
