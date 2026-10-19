@@ -38,6 +38,7 @@ export default function DesktopWindow({
   const [position, setPosition] = useState(initialState?.position ?? { x: 0, y: 0 });
   const [size, setSize] = useState(initialState?.size ?? { width: 1000, height: 780 });
   const [closing, setClosing] = useState(false);
+  const [interacting, setInteracting] = useState(false);
   const dragRef = useRef({ x: 0, y: 0, startY: 0, wasMaximized: false, started: false });
   const resizeRef = useRef({ direction: "se" as ResizeDirection, x: 0, y: 0, width: 0, height: 0, left: 0, top: 0 });
   const onStateChangeRef = useRef(onStateChange);
@@ -79,6 +80,7 @@ export default function DesktopWindow({
   const startDrag = (event: PointerEvent<HTMLElement>) => {
     if (closing || (event.target instanceof Element && event.target.closest("button"))) return;
     event.preventDefault();
+    setInteracting(true);
     event.currentTarget.setPointerCapture(event.pointerId);
     dragRef.current = {
       x: event.clientX - position.x,
@@ -109,12 +111,14 @@ export default function DesktopWindow({
 
   const endDrag = (event: PointerEvent<HTMLElement>) => {
     dragRef.current.started = false;
+    setInteracting(false);
     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
   const startResize = (direction: ResizeDirection) => (event: PointerEvent<HTMLButtonElement>) => {
     if (maximized || closing) return;
     event.stopPropagation();
+    setInteracting(true);
     event.currentTarget.setPointerCapture(event.pointerId);
     resizeRef.current = { direction, x: event.clientX, y: event.clientY, width: size.width, height: size.height, left: position.x, top: position.y };
   };
@@ -142,7 +146,7 @@ export default function DesktopWindow({
   }
 
   const handle = (direction: ResizeDirection, className: string) => (
-    <button type="button" aria-label={`Resize ${direction}`} onPointerDown={startResize(direction)} onPointerMove={resize} className={`absolute z-10 ${className}`} />
+    <button type="button" aria-label={`Resize ${direction}`} onPointerDown={startResize(direction)} onPointerMove={resize} onPointerUp={() => setInteracting(false)} onPointerCancel={() => setInteracting(false)} className={`absolute z-10 ${className}`} />
   );
 
   return (
@@ -157,7 +161,7 @@ export default function DesktopWindow({
         if (event.target instanceof Element && event.target.closest("button, input, textarea, a, [contenteditable='true']")) return;
         setMinimized(true);
       }}
-      className={`desktop-window fixed ${active ? "z-50" : "z-40"} flex min-h-0 flex-col overflow-hidden border border-border bg-background text-foreground shadow-2xl transition-[width,height,transform,top,left,opacity,border-radius] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${closing ? "desktop-window-closing pointer-events-none" : "desktop-window-opening"} ${maximized ? "inset-0 rounded-none" : "left-1/2 top-1/2 rounded-3xl"}`}>
+      className={`desktop-window fixed ${active ? "z-50" : "z-40"} flex min-h-0 flex-col overflow-hidden border border-border bg-background text-foreground shadow-2xl transition-[width,height,transform,top,left,opacity,border-radius] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${interacting ? "!transition-none" : ""} ${closing ? "desktop-window-closing pointer-events-none" : "desktop-window-opening"} ${maximized ? "inset-0 rounded-none" : "left-1/2 top-1/2 rounded-3xl"}`}>
       <header onPointerDown={startDrag} onPointerMove={drag} onPointerUp={endDrag} onPointerCancel={endDrag}
         className="grid h-12 shrink-0 grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-border/60 bg-card/65 px-3 shadow-sm backdrop-blur-2xl active:cursor-grabbing">
         <button type="button" onClick={closeWithTransition} aria-label={`Back from ${title}`} className="flex size-8 items-center justify-center rounded-lg hover:bg-accent"><ArrowLeft size={16} /></button>
