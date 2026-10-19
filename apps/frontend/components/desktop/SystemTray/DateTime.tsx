@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   BatteryFull,
   Bell,
@@ -148,11 +148,8 @@ export default function DateTime({
     (theme === "auto" &&
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-color-scheme: dark)").matches);
-  const [animation, setAnimation] = useState(() =>
-    typeof window === "undefined"
-      ? true
-      : window.localStorage.getItem("utoolity.animations")?.toLowerCase() !== "off",
-  );
+  const [animation, setAnimation] = useState(true);
+  const animationPreferenceInitializedRef = useRef(false);
   const [grain, setGrain] = useUserPreference<GrainLevel>("utoolity.grain", "Off");
   const [sound, setSound] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
@@ -185,6 +182,18 @@ export default function DateTime({
   }, [darkMode]);
 
   useEffect(() => {
+    if (!animationPreferenceInitializedRef.current) {
+      animationPreferenceInitializedRef.current = true;
+      const stored = window.localStorage.getItem("utoolity.animations");
+      if (stored) {
+        const enabled = stored.toLowerCase() !== "off";
+        document.documentElement.dataset.animation = enabled ? "on" : "off";
+        if (enabled !== animation) {
+          setAnimation(enabled);
+          return;
+        }
+      }
+    }
     const value = animation ? "On" : "Off";
     document.documentElement.dataset.animation = value.toLowerCase();
     window.localStorage.setItem("utoolity.animations", value);
