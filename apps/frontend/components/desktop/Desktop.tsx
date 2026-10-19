@@ -8,6 +8,7 @@ import SystemTray from "./SystemTray";
 import { api } from "../../lib/api";
 import DesktopContextMenu, { type MenuAction } from "./DesktopContextMenu";
 import DesktopApps from "./DesktopApps";
+import { getWallpapers } from "../../lib/wallpapers";
 import ToolContent, { appTitles, type DesktopAppId } from "./ToolContent";
 import type { WindowSummary } from "./SystemTray/AllWindows";
 
@@ -170,9 +171,8 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
         void request.call(document.documentElement);
       }
     } else if (action === "wallpaper") {
-      void fetch("/api/wallpapers", { cache: "no-store" })
-        .then((response) => response.json() as Promise<{ wallpapers?: Array<{ file: string }> }>)
-        .then(({ wallpapers = [] }) => {
+      void getWallpapers()
+        .then((wallpapers) => {
           if (wallpapers.length === 0) return;
           const current = root.dataset.wallpaper ?? "default.jpg";
           const currentIndex = wallpapers.findIndex(({ file }) => file === current);
