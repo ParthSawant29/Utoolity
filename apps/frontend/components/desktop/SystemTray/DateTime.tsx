@@ -185,9 +185,12 @@ export default function DateTime({
   }, [darkMode]);
 
   useEffect(() => {
-    document.documentElement.dataset.animation = animation
-      ? "on"
-      : "off";
+    const value = animation ? "On" : "Off";
+    document.documentElement.dataset.animation = value.toLowerCase();
+    window.localStorage.setItem("utoolity.animations", value);
+    window.dispatchEvent(new CustomEvent("utoolity:preference-changed", {
+      detail: { key: "utoolity.animations", value },
+    }));
   }, [animation]);
 
   useEffect(() => {
