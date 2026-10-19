@@ -21,6 +21,7 @@ export default function Home() {
   const socketRef = useRef<WebSocket | null>(null);
   const socketRetryRef = useRef<number | undefined>(undefined);
   const lastSocketActivityRef = useRef(0);
+  const pendingWorkspaceRef = useRef<unknown>(null);
   const shellStateRef = useRef(shellState);
 
   const sendSocketActivity = useCallback(() => {
@@ -54,6 +55,14 @@ export default function Home() {
       }
       lastSocketActivityRef.current = 0;
       sendSocketActivity();
+      if (pendingWorkspaceRef.current !== null) {
+        socket.send(JSON.stringify({
+          type: "workspace",
+          deviceId: getDeviceId(),
+          workspace: pendingWorkspaceRef.current,
+        }));
+        pendingWorkspaceRef.current = null;
+      }
     });
     socket.addEventListener("close", (event) => {
       if (socketRef.current === socket) socketRef.current = null;
@@ -93,8 +102,35 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
-    if (shellState !== "checking") connectActivitySocket();
+    if (shellState === "authenticated" || shellState === "sleep") {
+      connectActivitySocket();
+      return;
+    }
+    socketRef.current?.close(1000, "No active desktop session");
+    socketRef.current = null;
+    if (socketRetryRef.current !== undefined) {
+      window.clearTimeout(socketRetryRef.current);
+      socketRetryRef.current = undefined;
+    }
   }, [shellState, connectActivitySocket]);
+
+  useEffect(() => {
+    const handleWorkspaceState = (event: Event) => {
+      const workspace = (event as CustomEvent<unknown>).detail;
+      if (!workspace || typeof workspace !== "object") return;
+      pendingWorkspaceRef.current = workspace;
+      const socket = socketRef.current;
+      if (socket?.readyState !== WebSocket.OPEN) return;
+      socket.send(JSON.stringify({
+        type: "workspace",
+        deviceId: getDeviceId(),
+        workspace,
+      }));
+      pendingWorkspaceRef.current = null;
+    };
+    window.addEventListener("utoolity:workspace-state-changed", handleWorkspaceState);
+    return () => window.removeEventListener("utoolity:workspace-state-changed", handleWorkspaceState);
+  }, []);
 
   useEffect(() => {
     const activityEvents = ["pointerdown", "keydown", "mousemove", "touchstart"];
