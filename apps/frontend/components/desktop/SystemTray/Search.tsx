@@ -173,7 +173,7 @@ export default function Search({
         role="dialog"
         aria-modal="true"
         aria-label="Search applications"
-        className="fixed left-1/2 top-[12vh] z-[91] flex max-h-[min(510px,76dvh)] w-[min(550px,calc(100vw-28px))] -translate-x-1/2 flex-col overflow-hidden rounded-[24px] border border-border/80 bg-popover text-popover-foreground shadow-2xl shadow-black/25 animate-in fade-in-0 zoom-in-95 duration-150"
+        className="fixed left-1/2 top-[12vh] z-[91] flex max-h-[min(510px,76dvh)] w-[min(550px,calc(100vw-28px))] -translate-x-1/2 flex-col overflow-hidden rounded-[24px] border border-border/80 bg-popover text-popover-foreground shadow-2xl shadow-black/25 desktop-panel animate-in fade-in-0 zoom-in-95 duration-150"
       >
         <div className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-4">
           <SearchIcon
