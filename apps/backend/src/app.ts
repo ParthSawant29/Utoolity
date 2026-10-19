@@ -103,7 +103,7 @@ const devicePublicPaths = new Set([
 app.addHook("preHandler", async (request, reply) => {
   if (!request.url.startsWith("/api/") || request.method === "OPTIONS") return;
 
-  const pathname = request.url.split("?")[0];
+  const pathname = request.url.split("?")[0] ?? request.url;
   if (pathname === "/api/auth/socket") return;
 
   const deviceId = request.headers["x-utoolity-device-id"];
