@@ -2,13 +2,8 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
+import { getWallpapers, type Wallpaper } from "../../lib/wallpapers";
 
-type Wallpaper = {
-  file: string;
-  url: string;
-  darkUrl?: string;
-  lightUrl?: string;
-};
 type Layer = { url: string; key: number };
 
 export default function DesktopBackground() {
@@ -57,21 +52,14 @@ export default function DesktopBackground() {
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
     window.addEventListener("utoolity:wallpaper-changed", onThemeOrWallpaperChange);
 
-    void fetch("/api/wallpapers", { cache: "no-store" })
-      .then((response) => {
-        if (!response.ok) throw new Error(`Wallpaper request failed: ${response.status}`);
-        return response.json() as Promise<{ wallpapers?: Wallpaper[] }>;
-      })
-      .then(({ wallpapers = [] }) => {
+    void getWallpapers()
+      .then((wallpapers) => {
         if (cancelled) return;
         available = wallpapers;
         apply(getTheme());
       })
       .catch(() => {
-        if (!cancelled) {
-          available = [];
-          setActive(null);
-        }
+        if (!cancelled && available.length === 0) setActive(null);
       });
 
     return () => {
