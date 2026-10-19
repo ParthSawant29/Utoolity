@@ -538,3 +538,22 @@
     color: var(--primary-foreground);
   }
 }
+
+/* Desktop shell transitions. The user preference data-animation="off" below
+   reduces these to effectively instant changes. */
+@keyframes desktop-window-enter {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes desktop-window-exit {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+@keyframes desktop-panel-enter {
+  from { opacity: 0; transform: translateY(-6px) scale(0.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.desktop-window-opening { animation: desktop-window-enter 180ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.desktop-window-closing { animation: desktop-window-exit 180ms cubic-bezier(0.4, 0, 1, 1) both; }
+.desktop-window-minimized { animation: desktop-panel-enter 180ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+.desktop-panel { animation: desktop-panel-enter 160ms cubic-bezier(0.22, 1, 0.36, 1) both; }
