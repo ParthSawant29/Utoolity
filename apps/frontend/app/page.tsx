@@ -132,7 +132,7 @@ export default function Home() {
       }
 
       try {
-        const response = await api<{ user: { id: string } }>("/api/auth/me");
+        const response = await api<{ user: { id: string; hostname: string; displayName: string; role?: "intern" } }>("/api/auth/me");
         if (!active) return;
 
         const nextUserId = response.user.id;
@@ -142,10 +142,18 @@ export default function Home() {
         // A different authenticated account on this browser is the signal to
         // leave the previous desktop and require the newly detected user to unlock.
         if (previousUserId && previousUserId !== nextUserId) {
+          // Keep the newly detected identity on the lock screen, but invalidate
+          // the previous authenticated session so the new user must sign in.
+          localStorage.setItem("utoolity.cached-user", JSON.stringify(response.user));
           localStorage.setItem(AUTHENTICATED_SESSION_KEY, "false");
           localStorage.setItem(SHELL_STATE_KEY, "locked");
           localStorage.removeItem(SLEEP_STARTED_KEY);
           setShellState("locked");
+          try {
+            await api("/api/auth/logout", { method: "POST" });
+          } catch {
+            // Keep the UI locked even if the backend is temporarily unreachable.
+          }
           return;
         }
 
