@@ -100,12 +100,19 @@ async function updateSessionRecord(
     const sessions = await readSessions();
     const now = Date.now();
     const recordKey = `${user.id}:${deviceId}`;
+    const legacyRecord = sessions[user.id];
+    if (legacyRecord) {
+      if (legacyRecord.deviceId && legacyRecord.deviceId !== deviceId) {
+        const legacyKey = `${user.id}:${legacyRecord.deviceId}`;
+        if (!sessions[legacyKey]) sessions[legacyKey] = legacyRecord;
+      }
+      delete sessions[user.id];
+    }
     for (const [key, record] of Object.entries(sessions)) {
       if (record.deviceId === deviceId && record.userId !== user.id) {
         delete sessions[key];
       }
     }
-    delete sessions[user.id];
     sessions[recordKey] = {
       userId: user.id,
       hostname: user.hostname,
@@ -493,6 +500,13 @@ export default async function authRoutes(app: FastifyInstance) {
           return;
         }
         const sessions = await readSessions();
+        const assignedDeviceSession = Object.values(sessions).find(
+          (record) => record.deviceId === deviceId,
+        );
+        if (assignedDeviceSession && assignedDeviceSession.userId !== userId) {
+          socket.close(1008, "A different user is assigned to this device");
+          return;
+        }
         const existing = sessions[`${user.id}:${deviceId}`] ?? sessions[user.id];
         await updateSessionRecord(user, {
           active,
@@ -509,8 +523,20 @@ export default async function authRoutes(app: FastifyInstance) {
       const timerKey = `${userId}:${deviceId}`;
       const existingTimer = deviceInactivityTimers.get(timerKey);
       if (existingTimer) clearTimeout(existingTimer);
-      const timer = setTimeout(() => {
+      const timer = setTimeout(async () => {
         deviceInactivityTimers.delete(timerKey);
+        try {
+          const sessions = await readSessions();
+          const assignedDeviceSession = Object.values(sessions).find(
+            (record) => record.deviceId === deviceId,
+          );
+          if (assignedDeviceSession && assignedDeviceSession.userId !== userId) {
+            return;
+          }
+        } catch (error) {
+          request.log.error(error, "Unable to verify device assignment before inactivity update");
+          return;
+        }
         void persistActivity(false);
       }, 5 * 60 * 1000);
       deviceInactivityTimers.set(timerKey, timer);
