@@ -56,6 +56,21 @@ export default function Profile({ onSleep }: ProfileProps) {
   }, []);
 
   useEffect(() => {
+    // The lock screen caches the verified profile on unlock. Reuse it instead
+    // of repeating /api/auth/me on every desktop mount.
+    try {
+      const cached = localStorage.getItem("utoolity.cached-user");
+      if (cached) {
+        const user = JSON.parse(cached) as ProfileData;
+        if (user?.id && user.hostname && user.displayName) {
+          setProfile(user);
+          setProfileState("authenticated");
+          return;
+        }
+      }
+    } catch {
+      localStorage.removeItem("utoolity.cached-user");
+    }
     void loadProfile();
   }, [loadProfile]);
 
