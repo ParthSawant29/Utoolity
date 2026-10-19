@@ -25,15 +25,23 @@ type ResizeDirection = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 
 const MIN_WIDTH = 520;
 const MIN_HEIGHT = 420;
+const CLOSE_ANIMATION_MS = 180;
+const SNAP_EDGE_PX = 16;
+const PULL_TO_MINIMIZE_PX = 84;
 
-export default function DesktopWindow({ title, children, onClose, onBack, onFocus, offset = { x: 0, y: 0 }, active = true, onExpandedChange, initialState, onStateChange }: Props) {
+export default function DesktopWindow({
+  title, children, onClose, onBack, onFocus, offset = { x: 0, y: 0 },
+  active = true, onExpandedChange, initialState, onStateChange,
+}: Props) {
   const [maximized, setMaximized] = useState(initialState?.maximized ?? false);
   const [minimized, setMinimized] = useState(initialState?.minimized ?? false);
   const [position, setPosition] = useState(initialState?.position ?? { x: 0, y: 0 });
   const [size, setSize] = useState(initialState?.size ?? { width: 1000, height: 780 });
-  const dragRef = useRef({ x: 0, y: 0 });
+  const [closing, setClosing] = useState(false);
+  const dragRef = useRef({ x: 0, y: 0, startY: 0, wasMaximized: false, started: false });
   const resizeRef = useRef({ direction: "se" as ResizeDirection, x: 0, y: 0, width: 0, height: 0, left: 0, top: 0 });
   const onStateChangeRef = useRef(onStateChange);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   onStateChangeRef.current = onStateChange;
 
   const setMaximizedState = (value: boolean) => {
@@ -41,43 +49,74 @@ export default function DesktopWindow({ title, children, onClose, onBack, onFocu
     onExpandedChange?.(value);
   };
 
+  const closeWithTransition = () => {
+    if (closing) return;
+    setClosing(true);
+    closeTimerRef.current = setTimeout(() => (onBack ?? onClose)?.(), CLOSE_ANIMATION_MS);
+  };
+
   useEffect(() => {
-    onStateChangeRef.current?.({ position, size, maximized, minimized });
+    // Geometry updates are rendered locally at pointer speed. Notify the parent
+    // only after a short quiet period so persistence never runs per pointer move.
+    const timer = window.setTimeout(() => {
+      onStateChangeRef.current?.({ position, size, maximized, minimized });
+    }, 180);
+    return () => window.clearTimeout(timer);
   }, [position, size, maximized, minimized]);
 
   useEffect(() => {
     if (!initialState) return;
     setMaximized(initialState.maximized);
     setMinimized(initialState.minimized);
-  }, [
-    initialState?.maximized,
-    initialState?.minimized,
-  ]);
+    setPosition(initialState.position);
+    setSize(initialState.size);
+  }, [initialState?.maximized, initialState?.minimized, initialState?.position?.x, initialState?.position?.y, initialState?.size?.width, initialState?.size?.height]);
+
+  useEffect(() => () => {
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+  }, []);
 
   const startDrag = (event: PointerEvent<HTMLElement>) => {
-    if (maximized || event.target !== event.currentTarget) return;
+    if (closing || (event.target instanceof Element && event.target.closest("button"))) return;
+    event.preventDefault();
     event.currentTarget.setPointerCapture(event.pointerId);
-    dragRef.current = { x: event.clientX - position.x, y: event.clientY - position.y };
+    dragRef.current = {
+      x: event.clientX - position.x,
+      y: event.clientY - position.y,
+      startY: event.clientY,
+      wasMaximized: maximized,
+      started: true,
+    };
   };
 
   const drag = (event: PointerEvent<HTMLElement>) => {
-    if (!event.currentTarget.hasPointerCapture(event.pointerId) || maximized) return;
-    setPosition({ x: event.clientX - dragRef.current.x, y: event.clientY - dragRef.current.y });
+    const state = dragRef.current;
+    if (!state.started || !event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    if (state.wasMaximized) {
+      if (event.clientY - state.startY >= PULL_TO_MINIMIZE_PX) {
+        dragRef.current.started = false;
+        setMinimized(true);
+      }
+      return;
+    }
+    if (event.clientY <= SNAP_EDGE_PX) {
+      dragRef.current.started = false;
+      setMaximizedState(true);
+      return;
+    }
+    setPosition({ x: event.clientX - state.x, y: event.clientY - state.y });
+  };
+
+  const endDrag = (event: PointerEvent<HTMLElement>) => {
+    dragRef.current.started = false;
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
   };
 
   const startResize = (direction: ResizeDirection) => (event: PointerEvent<HTMLButtonElement>) => {
-    if (maximized) return;
+    if (maximized || closing) return;
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
-    resizeRef.current = {
-      direction,
-      x: event.clientX,
-      y: event.clientY,
-      width: size.width,
-      height: size.height,
-      left: position.x,
-      top: position.y,
-    };
+    resizeRef.current = { direction, x: event.clientX, y: event.clientY, width: size.width, height: size.height, left: position.x, top: position.y };
   };
 
   const resize = (event: PointerEvent<HTMLButtonElement>) => {
@@ -90,14 +129,16 @@ export default function DesktopWindow({ title, children, onClose, onBack, onFocu
     const width = Math.max(MIN_WIDTH, state.width + (west ? -dx : state.direction.includes("e") ? dx : 0));
     const height = Math.max(MIN_HEIGHT, state.height + (north ? -dy : state.direction.includes("s") ? dy : 0));
     setSize({ width, height });
-    setPosition({
-      x: state.left + (west ? state.width - width : 0),
-      y: state.top + (north ? state.height - height : 0),
-    });
+    setPosition({ x: state.left + (west ? state.width - width : 0), y: state.top + (north ? state.height - height : 0) });
   };
 
   if (minimized) {
-    return <button type="button" onClick={() => setMinimized(false)} className="fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-full border border-border bg-popover px-4 py-2 text-sm font-semibold text-popover-foreground shadow-xl">{title}</button>;
+    return (
+      <button type="button" onClick={() => setMinimized(false)} onDoubleClick={() => { setMinimized(false); setMaximizedState(true); }}
+        className="desktop-window-minimized fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-full border border-border bg-popover px-4 py-2 text-sm font-semibold text-popover-foreground shadow-xl">
+        {title}
+      </button>
+    );
   }
 
   const handle = (direction: ResizeDirection, className: string) => (
@@ -105,24 +146,25 @@ export default function DesktopWindow({ title, children, onClose, onBack, onFocu
   );
 
   return (
-    <section
-      aria-label={title}
+    <section aria-label={title}
       style={maximized ? undefined : {
         width: `min(${size.width}px, 92vw)`,
         height: `min(${size.height}px, 85dvh)`,
         transform: `translate(calc(-50% + ${position.x + offset.x}px), calc(-50% + ${position.y + offset.y}px))`,
       }}
       onPointerDown={onFocus}
-      className={`desktop-window fixed ${active ? "z-50" : "z-40"} flex min-h-0 flex-col overflow-hidden border border-border bg-background text-foreground shadow-2xl ${maximized ? "inset-0 rounded-none" : "left-1/2 top-1/2 rounded-3xl"}`}
-    >
-      <header onPointerDown={startDrag} onPointerMove={drag} className="grid h-12 shrink-0 grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-border/60 bg-card/65 px-3 shadow-sm backdrop-blur-2xl active:cursor-grabbing">
-        <button type="button" onClick={onBack ?? onClose} aria-label={`Back from ${title}`} className="flex size-8 items-center justify-center rounded-lg hover:bg-accent">
-          <ArrowLeft size={16} />
-        </button>
+      onDoubleClick={(event) => {
+        if (event.target instanceof Element && event.target.closest("button, input, textarea, a, [contenteditable='true']")) return;
+        setMinimized(true);
+      }}
+      className={`desktop-window fixed ${active ? "z-50" : "z-40"} flex min-h-0 flex-col overflow-hidden border border-border bg-background text-foreground shadow-2xl transition-[width,height,transform,top,left,opacity,border-radius] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${closing ? "desktop-window-closing pointer-events-none" : "desktop-window-opening"} ${maximized ? "inset-0 rounded-none" : "left-1/2 top-1/2 rounded-3xl"}`}>
+      <header onPointerDown={startDrag} onPointerMove={drag} onPointerUp={endDrag} onPointerCancel={endDrag}
+        className="grid h-12 shrink-0 grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-border/60 bg-card/65 px-3 shadow-sm backdrop-blur-2xl active:cursor-grabbing">
+        <button type="button" onClick={closeWithTransition} aria-label={`Back from ${title}`} className="flex size-8 items-center justify-center rounded-lg hover:bg-accent"><ArrowLeft size={16} /></button>
         <div className="col-start-3 flex items-center justify-end gap-1">
           <button type="button" onClick={() => setMinimized(true)} aria-label="Minimize window" className="flex size-8 items-center justify-center rounded-lg hover:bg-accent"><Minus size={16} /></button>
           <button type="button" onClick={() => setMaximizedState(!maximized)} aria-label={maximized ? "Restore window size" : "Maximize window size"} className="flex size-8 items-center justify-center rounded-lg hover:bg-accent">{maximized ? <Minimize2 size={15} /> : <Square size={14} />}</button>
-          <button type="button" onClick={onClose} aria-label="Close window" className="flex size-8 items-center justify-center rounded-lg hover:bg-destructive hover:text-destructive-foreground"><X size={16} /></button>
+          <button type="button" onClick={closeWithTransition} aria-label="Close window" className="flex size-8 items-center justify-center rounded-lg hover:bg-destructive hover:text-destructive-foreground"><X size={16} /></button>
         </div>
         <h2 className="pointer-events-none col-start-2 row-start-1 justify-self-center text-center text-base font-semibold tracking-tight">{title}</h2>
       </header>
