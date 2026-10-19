@@ -73,6 +73,26 @@ export default function Home() {
   }, [shellState]);
 
   useEffect(() => {
+    const handleStorage = (event: StorageEvent) => {
+      if (
+        event.key === "utoolity.authenticated-user-id" &&
+        event.oldValue &&
+        event.oldValue !== event.newValue
+      ) {
+        // Another tab signed in as a different user (or explicitly signed out).
+        // Lock this tab without treating a dropped network connection as logout.
+        localStorage.setItem(AUTHENTICATED_SESSION_KEY, "false");
+        localStorage.setItem(SHELL_STATE_KEY, "locked");
+        localStorage.removeItem(SLEEP_STARTED_KEY);
+        setShellState("locked");
+      }
+    };
+
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, []);
+
+  useEffect(() => {
     if (shellState !== "checking") connectActivitySocket();
   }, [shellState, connectActivitySocket]);
 
