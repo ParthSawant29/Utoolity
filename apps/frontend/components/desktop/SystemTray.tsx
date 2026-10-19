@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import AllWindows from "./SystemTray/AllWindows";
 import type { WindowSummary } from "./SystemTray/AllWindows";
 import Search, { type SearchItem } from "./SystemTray/Search";
@@ -27,6 +28,9 @@ export default function SystemTray({
   onLock,
 }: SystemTrayProps) {
   const [panel, setPanel] = useState<Panel>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
 
   const closePanel = useCallback(() => setPanel(null), []);
 
@@ -34,8 +38,10 @@ export default function SystemTray({
     setPanel((current) => (current === next ? null : next));
   }, []);
 
-  return (
-    <div className="z-999 fixed right-4 top-4 z-[80] flex items-center gap-2">
+  if (!mounted) return null;
+
+  return createPortal(
+    <div className="pointer-events-auto fixed right-4 top-4 z-[1000] flex items-center gap-2">
       <AllWindows
         windows={windows}
         onFocus={onFocusWindow}
@@ -62,6 +68,7 @@ export default function SystemTray({
         onSleep={onSleep}
         onLock={onLock}
       />
-    </div>
+    </div>,
+    document.body,
   );
 }
