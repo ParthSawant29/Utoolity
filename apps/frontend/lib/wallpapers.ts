@@ -19,7 +19,7 @@ type CachedCatalog = {
 let cachedWallpapers: Wallpaper[] | undefined;
 let pendingRequest: Promise<Wallpaper[]> | undefined;
 
-function readCachedCatalog(): Wallpaper[] | undefined {
+function readCachedCatalog(allowStale = false): Wallpaper[] | undefined {
   if (typeof window === "undefined") return undefined;
 
   try {
@@ -30,9 +30,12 @@ function readCachedCatalog(): Wallpaper[] | undefined {
     if (
       cached.version !== CACHE_VERSION ||
       !Array.isArray(cached.wallpapers) ||
-      !Number.isFinite(cached.savedAt) ||
-      Date.now() - cached.savedAt > CACHE_TTL_MS
+      !Number.isFinite(cached.savedAt)
     ) {
+      return undefined;
+    }
+
+    if (!allowStale && Date.now() - cached.savedAt > CACHE_TTL_MS) {
       return undefined;
     }
 
@@ -42,17 +45,7 @@ function readCachedCatalog(): Wallpaper[] | undefined {
   }
 }
 
-export async function getWallpapers(options: { refresh?: boolean } = {}): Promise<Wallpaper[]> {
-  if (!options.refresh && cachedWallpapers) return cachedWallpapers;
-
-  if (!options.refresh) {
-    const persisted = readCachedCatalog();
-    if (persisted) {
-      cachedWallpapers = persisted;
-      return persisted;
-    }
-  }
-
+function requestCatalog(): Promise<Wallpaper[]> {
   if (pendingRequest) return pendingRequest;
 
   pendingRequest = (async () => {
@@ -84,4 +77,27 @@ export async function getWallpapers(options: { refresh?: boolean } = {}): Promis
   });
 
   return pendingRequest;
+}
+
+export async function getWallpapers(options: { refresh?: boolean } = {}): Promise<Wallpaper[]> {
+  if (!options.refresh && cachedWallpapers) return cachedWallpapers;
+
+  if (!options.refresh) {
+    const persisted = readCachedCatalog();
+    if (persisted) {
+      cachedWallpapers = persisted;
+      return persisted;
+    }
+
+    // Serve the last known catalog immediately when it is stale. Refresh it in
+    // the background; a temporary backend outage must not blank the wallpaper UI.
+    const stale = readCachedCatalog(true);
+    if (stale) {
+      cachedWallpapers = stale;
+      void requestCatalog().catch(() => undefined);
+      return stale;
+    }
+  }
+
+  return requestCatalog();
 }
