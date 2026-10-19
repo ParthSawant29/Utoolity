@@ -101,12 +101,14 @@ export default function DesktopWindow({
     if (state.wasMaximized) {
       if (event.clientY - state.startY >= PULL_TO_MINIMIZE_PX) {
         dragRef.current.started = false;
+        setInteracting(false);
         setMinimized(true);
       }
       return;
     }
     if (event.clientY <= SNAP_EDGE_PX) {
       dragRef.current.started = false;
+      setInteracting(false);
       setMaximizedState(true);
       return;
     }
