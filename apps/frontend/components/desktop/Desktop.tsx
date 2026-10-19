@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type MouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type MouseEvent } from "react";
 import DesktopBackground from "./DesktopBackground";
 import DesktopWindow, { type WindowState } from "./DesktopWindow";
 import Profile from "./Profile";
@@ -26,6 +26,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
   const [activeAppKey, setActiveAppKey] = useState<string | null>(null);
   const [workspaceHydrated, setWorkspaceHydrated] = useState(false);
   const [workspaceUserId, setWorkspaceUserId] = useState<string | null>(null);
+  const closingWindowKeysRef = useRef(new Set<string>());
   useEffect(() => {
     const updateScale = () => {
       const fitScale = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
@@ -68,13 +69,18 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
     };
   });
   const closeWindow = useCallback((key: string) => {
+    if (closingWindowKeysRef.current.has(key)) return;
+    closingWindowKeysRef.current.add(key);
     window.dispatchEvent(
       new CustomEvent("utoolity:tool-closing", { detail: { key } }),
     );
-    setOpenApps((current) =>
-      current.filter((item) => `${item.app}:${item.filePath ?? ""}` !== key),
-    );
-    setExpandedAppKey((current) => (current === key ? null : current));
+    window.setTimeout(() => {
+      closingWindowKeysRef.current.delete(key);
+      setOpenApps((current) =>
+        current.filter((item) => `${item.app}:${item.filePath ?? ""}` !== key),
+      );
+      setExpandedAppKey((current) => (current === key ? null : current));
+    }, 180);
   }, []);
 
   useEffect(() => {
@@ -313,6 +319,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
         return (
         <DesktopWindow
           key={key}
+          windowKey={key}
           title={appTitles[app]}
           active={activeAppKey === key}
           offset={{ x: (index % 3) * 28, y: (index % 3) * 24 }}
