@@ -331,8 +331,8 @@ export default function DateTime({
               <Setting
                 icon={Waves}
                 title="Animation"
-                value={animation ? "On" : "Off"}
-                active={animation}
+                value={animation}
+                active={animation === "On"}
                 iconClassName="bg-accent text-accent-foreground"
                 onClick={() => setAnimation(animation === "On" ? "Off" : "On")}
               />
