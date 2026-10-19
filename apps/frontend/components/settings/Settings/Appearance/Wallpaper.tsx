@@ -5,16 +5,24 @@ import { useEffect, useState } from "react";
 import { useUserPreference } from "../../../../lib/user-preference";
 import { Check } from "lucide-react";
 import { Card, CardContent } from "@repo/ui/shadcn/card";
+import { getWallpapers } from "../../../../lib/wallpapers";
 
 export default function Wallpaper() {
-  const [wallpapers, setWallpapers] = useState<Array<{ file: string; name: string; url: string }>>([]);
+  const [wallpapers, setWallpapers] = useState<Array<{ file: string; name: string; url: string; darkUrl?: string; lightUrl?: string }>>([]);
   const [selected, setSelected] = useUserPreference<string>("utoolity.wallpaper", "default.jpg");
 
   useEffect(() => {
-    void fetch("/api/wallpapers", { cache: "no-store" })
-      .then((response) => response.json() as Promise<{ wallpapers?: Array<{ file: string; name: string; url: string }> }>)
-      .then((data) => setWallpapers(data.wallpapers ?? []))
-      .catch(() => setWallpapers([]));
+    let cancelled = false;
+    void getWallpapers()
+      .then((data) => {
+        if (!cancelled) setWallpapers(data);
+      })
+      .catch(() => {
+        if (!cancelled) setWallpapers([]);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
