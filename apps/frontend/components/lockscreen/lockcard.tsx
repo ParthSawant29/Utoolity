@@ -163,22 +163,8 @@ function Lockcard({
       let authenticatedUser: LockProfileResponse["user"] | undefined;
       let hasAuthenticatedSession = initialAuthenticated;
 
-      if (!initialAuthenticated) {
-        try {
-          const current = await api<LockProfileResponse>("/api/auth/me");
-          authenticatedUser = current.user;
-          hasAuthenticatedSession = Boolean(current.user);
-        } catch (cause) {
-          const message = cause instanceof Error ? cause.message : "";
-          const isExpectedUnauthenticated =
-            message === "Not authenticated." ||
-            message === "Session user no longer exists." ||
-            message.includes("(401)");
-          if (!isExpectedUnauthenticated) {
-            console.error("Could not verify the current session:", cause);
-          }
-        }
-      }
+      // Home already verifies /api/auth/me before rendering this lock screen.
+      // Avoid issuing the same unauthenticated request a second time here.
 
       if (!active) return;
       setAuthenticated(hasAuthenticatedSession);
