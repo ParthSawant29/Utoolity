@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { api, ApiError } from "../../lib/api";
 import { useClock } from "../shared/useClock";
+import { getWallpapers } from "../../lib/wallpapers";
 type LockProfile = {
   id: string;
   hostname: string;
@@ -135,13 +136,10 @@ function Lockcard({
       );
     };
     applyWallpaper();
-    void fetch("/api/wallpapers", { cache: "no-store" })
-      .then((response) =>
-        response.json() as Promise<{
-          wallpapers?: Array<{ file: string; url: string }>;
-        }>,
-      )
-      .then(({ wallpapers = [] }) => {
+    let cancelled = false;
+    void getWallpapers()
+      .then((wallpapers) => {
+        if (cancelled) return;
         availableWallpapers = wallpapers;
         applyWallpaper();
       })
@@ -161,6 +159,9 @@ function Lockcard({
       .catch(() => {
         // The cached wallpaper remains active while the backend reconnects.
       });
+    return () => {
+      cancelled = true;
+    };
   }, []);
   useEffect(() => {
     if (!wallpaperUrl) return;
