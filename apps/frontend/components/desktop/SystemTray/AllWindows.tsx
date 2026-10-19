@@ -36,6 +36,7 @@ export default function AllWindows({ windows, onFocus, onClose }: Props) {
         title="All windows (Alt + A)"
         aria-label="All windows"
         aria-expanded={open}
+        onClick={() => setOpen((current) => !current)}
         className="relative flex size-9 shrink-0 items-center justify-center rounded-full border border-border/70 bg-background/75 text-foreground shadow-sm backdrop-blur-xl transition-colors hover:bg-accent hover:text-accent-foreground active:scale-95"
       >
         <AppWindow size={17} strokeWidth={1.9} />
