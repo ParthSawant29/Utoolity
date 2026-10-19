@@ -187,7 +187,7 @@ export default function DesktopApps({ onOpen }: { onOpen: (app: DesktopAppId) =>
               {app.label}
             </button>
             {openTools === app.id && app.tools && (
-              <div className="absolute left-[100px] top-0 z-30 w-52 rounded-2xl border border-border bg-popover p-2 text-sm text-popover-foreground shadow-2xl">
+              <div className="desktop-panel absolute left-[100px] top-0 z-30 w-52 rounded-2xl border border-border bg-popover p-2 text-sm text-popover-foreground shadow-2xl">
                 {app.tools.map((tool) => (
                   <button
                     key={tool.route}
