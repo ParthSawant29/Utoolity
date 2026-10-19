@@ -204,7 +204,25 @@ function Lockcard({
         ?.trim();
       const configuredHostname = authenticatedUser?.hostname || savedHostname || "";
 
+      if (!authenticatedUser) {
+        try {
+          const cachedUser = window.localStorage.getItem("utoolity.cached-user");
+          if (cachedUser) {
+            const parsed = JSON.parse(cachedUser) as LockProfileResponse["user"];
+            if (parsed?.id && parsed.hostname && parsed.displayName) {
+              setProfile({ ...parsed, locked: true });
+              setHostname(parsed.hostname);
+              setLoadingProfile(false);
+              return;
+            }
+          }
+        } catch {
+          window.localStorage.removeItem("utoolity.cached-user");
+        }
+      }
+
       if (authenticatedUser) {
+        window.localStorage.setItem("utoolity.cached-user", JSON.stringify(authenticatedUser));
         setProfile({ ...authenticatedUser, locked: true });
         setHostname(authenticatedUser.hostname);
         window.localStorage.setItem("utoolity.authenticated-user-id", authenticatedUser.id);
@@ -234,6 +252,7 @@ function Lockcard({
           throw new Error("This device has not been assigned to an account yet.");
         }
 
+        window.localStorage.setItem("utoolity.cached-user", JSON.stringify(resolvedUser));
         setProfile({ ...resolvedUser, locked: true });
         setHostname(resolvedUser.hostname);
         window.localStorage.setItem(HOSTNAME_STORAGE_KEY, resolvedUser.hostname);
@@ -336,6 +355,7 @@ function Lockcard({
       setProfile({ ...user, locked: false });
       setHostname(user.hostname);
       window.localStorage.setItem("utoolity.authenticated-user-id", user.id);
+      window.localStorage.setItem("utoolity.cached-user", JSON.stringify(user));
       window.localStorage.setItem("utoolity.authenticated", "true");
       window.localStorage.setItem(HOSTNAME_STORAGE_KEY, user.hostname);
       leaveLockscreen();
