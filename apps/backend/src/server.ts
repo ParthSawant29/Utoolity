@@ -11,9 +11,7 @@ try {
     );
   }
 
-  const address = await app.listen({ port, host });
-
-  app.log.info(`Backend server listening at ${address}`);
+  await app.listen({ port, host });
 } catch (error) {
   app.log.error(
     { err: error },
