@@ -148,7 +148,11 @@ export default function DateTime({
     (theme === "auto" &&
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-color-scheme: dark)").matches);
-  const [animation, setAnimation] = useState(true);
+  const [animation, setAnimation] = useState(() =>
+    typeof window === "undefined"
+      ? true
+      : window.localStorage.getItem("utoolity.animations")?.toLowerCase() !== "off",
+  );
   const [grain, setGrain] = useUserPreference<GrainLevel>("utoolity.grain", "Off");
   const [sound, setSound] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
