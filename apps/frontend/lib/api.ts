@@ -149,17 +149,42 @@ async function performApi<T>(
 }
 
 const pendingGetRequests = new Map<string, Promise<unknown>>();
+const cachedGetResponses = new Map<string, { expiresAt: number; value: unknown }>();
+const PREFERENCE_CACHE_MS = 3_000;
 
 export function api<T>(path: string, options: RequestInit = {}): Promise<T> {
-  if ((options.method ?? "GET").toUpperCase() !== "GET") {
+  const method = (options.method ?? "GET").toUpperCase();
+  if (method !== "GET") {
+    if (path === "/api/auth/preferences" && method === "PATCH") {
+      cachedGetResponses.delete("/api/auth/preferences");
+    }
+    if (["/api/auth/login", "/api/auth/logout", "/api/lockscreen/unlock"].includes(path)) {
+      cachedGetResponses.clear();
+    }
     return performApi<T>(path, options);
   }
+
+  // Preference consumers in the desktop and settings panels share the same
+  // small cache, avoiding a burst of identical requests during initial mount.
+  if (path === "/api/auth/preferences") {
+    const cached = cachedGetResponses.get(path);
+    if (cached && cached.expiresAt > Date.now()) return Promise.resolve(cached.value as T);
+    cachedGetResponses.delete(path);
+  }
+
   const pending = pendingGetRequests.get(path);
   if (pending) return pending as Promise<T>;
 
-  const request = performApi<T>(path, options).finally(() => {
-    if (pendingGetRequests.get(path) === request) pendingGetRequests.delete(path);
-  });
+  const request = performApi<T>(path, options)
+    .then((value) => {
+      if (path === "/api/auth/preferences") {
+        cachedGetResponses.set(path, { expiresAt: Date.now() + PREFERENCE_CACHE_MS, value });
+      }
+      return value;
+    })
+    .finally(() => {
+      if (pendingGetRequests.get(path) === request) pendingGetRequests.delete(path);
+    });
   pendingGetRequests.set(path, request);
   return request;
 }
