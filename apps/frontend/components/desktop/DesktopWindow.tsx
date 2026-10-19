@@ -5,6 +5,7 @@ import { ArrowLeft, Minimize2, Minus, Square, X } from "lucide-react";
 
 type Props = {
   title: string;
+  windowKey?: string;
   children: ReactNode;
   onClose?: () => void;
   onBack?: () => void;
@@ -25,12 +26,11 @@ type ResizeDirection = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
 
 const MIN_WIDTH = 520;
 const MIN_HEIGHT = 420;
-const CLOSE_ANIMATION_MS = 180;
 const SNAP_EDGE_PX = 16;
 const PULL_TO_MINIMIZE_PX = 84;
 
 export default function DesktopWindow({
-  title, children, onClose, onBack, onFocus, offset = { x: 0, y: 0 },
+  title, windowKey, children, onClose, onBack, onFocus, offset = { x: 0, y: 0 },
   active = true, onExpandedChange, initialState, onStateChange,
 }: Props) {
   const [maximized, setMaximized] = useState(initialState?.maximized ?? false);
@@ -42,7 +42,6 @@ export default function DesktopWindow({
   const dragRef = useRef({ x: 0, y: 0, startY: 0, wasMaximized: false, started: false });
   const resizeRef = useRef({ direction: "se" as ResizeDirection, x: 0, y: 0, width: 0, height: 0, left: 0, top: 0 });
   const onStateChangeRef = useRef(onStateChange);
-  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   onStateChangeRef.current = onStateChange;
 
   const setMaximizedState = (value: boolean) => {
@@ -53,7 +52,7 @@ export default function DesktopWindow({
   const closeWithTransition = () => {
     if (closing) return;
     setClosing(true);
-    closeTimerRef.current = setTimeout(() => (onBack ?? onClose)?.(), CLOSE_ANIMATION_MS);
+    (onBack ?? onClose)?.();
   };
 
   useEffect(() => {
@@ -73,9 +72,14 @@ export default function DesktopWindow({
     setSize(initialState.size);
   }, [initialState?.maximized, initialState?.minimized, initialState?.position?.x, initialState?.position?.y, initialState?.size?.width, initialState?.size?.height]);
 
-  useEffect(() => () => {
-    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
-  }, []);
+  useEffect(() => {
+    const handleClosing = (event: Event) => {
+      const key = (event as CustomEvent<{ key?: string }>).detail?.key;
+      if (windowKey && key === windowKey) setClosing(true);
+    };
+    window.addEventListener("utoolity:tool-closing", handleClosing);
+    return () => window.removeEventListener("utoolity:tool-closing", handleClosing);
+  }, [windowKey]);
 
   const startDrag = (event: PointerEvent<HTMLElement>) => {
     if (closing || (event.target instanceof Element && event.target.closest("button"))) return;
