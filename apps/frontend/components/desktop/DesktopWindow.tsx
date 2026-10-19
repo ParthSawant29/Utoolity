@@ -155,17 +155,19 @@ export default function DesktopWindow({
 
   return (
     <section aria-label={title}
-      style={maximized ? undefined : {
-        width: `min(${size.width}px, 92vw)`,
-        height: `min(${size.height}px, 85dvh)`,
-        transform: `translate(calc(-50% + ${position.x + offset.x}px), calc(-50% + ${position.y + offset.y}px))`,
+      style={{
+        width: maximized ? "100vw" : `min(${size.width}px, 92vw)`,
+        height: maximized ? "100dvh" : `min(${size.height}px, 85dvh)`,
+        transform: maximized
+          ? "translate(0, 0)"
+          : `translate(calc(-50% + ${position.x + offset.x}px), calc(-50% + ${position.y + offset.y}px))`,
       }}
       onPointerDown={onFocus}
       onDoubleClick={(event) => {
         if (event.target instanceof Element && event.target.closest("button, input, textarea, a, [contenteditable='true']")) return;
         setMinimized(true);
       }}
-      className={`desktop-window fixed ${active ? "z-50" : "z-40"} flex min-h-0 flex-col overflow-hidden border border-border bg-background text-foreground shadow-2xl transition-[width,height,transform,top,left,opacity,border-radius] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${interacting ? "!transition-none" : ""} ${closing ? "desktop-window-closing pointer-events-none" : "desktop-window-opening"} ${maximized ? "inset-0 rounded-none" : "left-1/2 top-1/2 rounded-3xl"}`}>
+      className={`desktop-window fixed ${active ? "z-50" : "z-40"} flex min-h-0 flex-col overflow-hidden border border-border bg-background text-foreground shadow-2xl transition-[width,height,transform,top,left,opacity,border-radius] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] ${interacting ? "!transition-none" : ""} ${closing ? "desktop-window-closing pointer-events-none" : "desktop-window-opening"} ${maximized ? "left-0 top-0 rounded-none" : "left-1/2 top-1/2 rounded-3xl"}`}>
       <header onPointerDown={startDrag} onPointerMove={drag} onPointerUp={endDrag} onPointerCancel={endDrag}
         className="grid h-12 shrink-0 grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-border/60 bg-card/65 px-3 shadow-sm backdrop-blur-2xl active:cursor-grabbing">
         <button type="button" onClick={closeWithTransition} aria-label={`Back from ${title}`} className="flex size-8 items-center justify-center rounded-lg hover:bg-accent"><ArrowLeft size={16} /></button>
