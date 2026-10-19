@@ -143,7 +143,7 @@ export default function DesktopWindow({
   if (minimized) {
     return (
       <button type="button" onClick={() => setMinimized(false)} onDoubleClick={() => { setMinimized(false); setMaximizedState(true); }}
-        className="desktop-window-minimized fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-full border border-border bg-popover px-4 py-2 text-sm font-semibold text-popover-foreground shadow-xl">
+        className={`desktop-window-minimized fixed bottom-5 left-1/2 z-50 -translate-x-1/2 rounded-full border border-border bg-popover px-4 py-2 text-sm font-semibold text-popover-foreground shadow-xl ${closing ? "desktop-window-closing pointer-events-none" : ""}`}>
         {title}
       </button>
     );
