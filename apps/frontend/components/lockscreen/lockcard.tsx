@@ -144,21 +144,8 @@ function Lockcard({
         applyWallpaper();
       })
       .catch(() => undefined);
-    void api<{ preferences: Record<string, string> }>("/api/auth/preferences")
-      .then(({ preferences }) => {
-        const wallpaper = preferences["utoolity.wallpaper"];
-        if (wallpaper) {
-          selectedWallpaper = wallpaper;
-          window.localStorage.setItem(
-            "utoolity.wallpaper",
-            normalizeWallpaper(wallpaper),
-          );
-          applyWallpaper();
-        }
-      })
-      .catch(() => {
-        // The cached wallpaper remains active while the backend reconnects.
-      });
+    // The lock screen restores appearance from local preferences. Do not
+    // request authenticated preferences while the user is signed out.
     return () => {
       cancelled = true;
     };
