@@ -31,7 +31,9 @@ if (
 }
 
 const app = Fastify({
-  logger: true,
+  // Keep routine request/response records out of the development console.
+  // Set LOG_LEVEL=info to enable verbose request logging while debugging.
+  logger: { level: process.env.LOG_LEVEL ?? "warn" },
   bodyLimit: 50 * 1024 * 1024,
 });
 
