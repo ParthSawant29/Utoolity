@@ -29,6 +29,7 @@ type PublicUser = Pick<
 
 type AuthSession = {
   userId?: string;
+  deviceId?: string;
   role?: "intern";
   lastActivityAt?: number;
   save(callback: (error?: Error) => void): void;
@@ -80,6 +81,7 @@ async function writeSessions(sessions: Record<string, SessionRecord>): Promise<v
 }
 
 let sessionUpdateQueue: Promise<void> = Promise.resolve();
+const deviceInactivityTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function getDeviceId(request: FastifyRequest, fallback: string): string {
   const candidate = request.headers["x-utoolity-device-id"];
@@ -98,6 +100,11 @@ async function updateSessionRecord(
     const sessions = await readSessions();
     const now = Date.now();
     const recordKey = `${user.id}:${deviceId}`;
+    for (const [key, record] of Object.entries(sessions)) {
+      if (record.deviceId === deviceId && record.userId !== user.id) {
+        delete sessions[key];
+      }
+    }
     delete sessions[user.id];
     sessions[recordKey] = {
       userId: user.id,
@@ -228,6 +235,7 @@ async function establishSession(
 ): Promise<void> {
   const session = getSession(request);
   session.userId = user.id;
+  session.deviceId = getDeviceId(request, user.macId);
   session.role = user.role;
   session.lastActivityAt = Date.now();
   await saveSession(request);
@@ -474,8 +482,8 @@ export default async function authRoutes(app: FastifyInstance) {
       return;
     }
 
-    let deviceId = "pending-device";
-    let inactivityTimer: ReturnType<typeof setTimeout> | undefined;
+    const session = getSession(request);
+    let deviceId = session.deviceId ?? "pending-device";
 
     const persistActivity = async (active: boolean) => {
       try {
@@ -497,10 +505,15 @@ export default async function authRoutes(app: FastifyInstance) {
     };
 
     const resetInactivityTimer = () => {
-      if (inactivityTimer) clearTimeout(inactivityTimer);
-      inactivityTimer = setTimeout(() => {
+      if (deviceId === "pending-device") return;
+      const timerKey = `${userId}:${deviceId}`;
+      const existingTimer = deviceInactivityTimers.get(timerKey);
+      if (existingTimer) clearTimeout(existingTimer);
+      const timer = setTimeout(() => {
+        deviceInactivityTimers.delete(timerKey);
         void persistActivity(false);
       }, 5 * 60 * 1000);
+      deviceInactivityTimers.set(timerKey, timer);
     };
 
     socket.on("message", (raw: Buffer | ArrayBuffer | Buffer[]) => {
@@ -512,7 +525,15 @@ export default async function authRoutes(app: FastifyInstance) {
       }
 
       if (typeof message.deviceId === "string" && /^[a-zA-Z0-9._:-]{8,128}$/.test(message.deviceId)) {
+        if (session.deviceId && session.deviceId !== message.deviceId) {
+          socket.close(1008, "Device identity mismatch");
+          return;
+        }
         deviceId = message.deviceId;
+        if (!session.deviceId) {
+          session.deviceId = deviceId;
+          void saveSession(request);
+        }
       }
       if (message.type !== "activity" || deviceId === "pending-device") return;
 
@@ -521,8 +542,9 @@ export default async function authRoutes(app: FastifyInstance) {
     });
 
     socket.on("close", () => {
-      if (inactivityTimer) clearTimeout(inactivityTimer);
-      void persistActivity(false);
+      // Keep the device active during transient reconnects; mark it inactive only
+      // after the shared per-device inactivity timer expires.
+      resetInactivityTimer();
     });
     socket.on("error", (error: Error) => {
       request.log.warn({ err: error }, "Device activity WebSocket error");
