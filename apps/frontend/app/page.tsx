@@ -95,8 +95,9 @@ export default function Home() {
 
     async function verifySession() {
       const cachedAuthenticated =
-        sessionStorage.getItem(AUTHENTICATED_SESSION_KEY) === "true";
-      const cachedState = sessionStorage.getItem(SHELL_STATE_KEY);
+        localStorage.getItem(AUTHENTICATED_SESSION_KEY) === "true";
+      const cachedState = localStorage.getItem(SHELL_STATE_KEY);
+      const cachedUserId = localStorage.getItem("utoolity.authenticated-user-id");
       const cachedShellState: ShellState =
         cachedAuthenticated && (cachedState === "sleep" || cachedState === "locked")
           ? cachedState
@@ -104,40 +105,53 @@ export default function Home() {
             ? "authenticated"
             : "checking";
 
-      if (active && cachedShellState !== "checking") {
-        lastActivityRef.current = Number(
-          sessionStorage.getItem(LAST_ACTIVITY_KEY) ?? Date.now(),
-        );
+      if (active && cachedAuthenticated && cachedUserId) {
+        const lastActivity = Number(localStorage.getItem(LAST_ACTIVITY_KEY) ?? Date.now());
+        lastActivityRef.current = Number.isFinite(lastActivity) ? lastActivity : Date.now();
         setShellState(cachedShellState);
       }
 
       try {
-        await api("/api/auth/me");
-        if (active) {
-          sessionStorage.setItem(AUTHENTICATED_SESSION_KEY, "true");
-          const savedState = sessionStorage.getItem(SHELL_STATE_KEY);
-          const nextState: ShellState =
-            savedState === "locked" || savedState === "sleep"
-              ? savedState
-              : "authenticated";
-          sessionStorage.setItem(SHELL_STATE_KEY, nextState);
-          setShellState(nextState);
-          lastActivityRef.current = Number(
-            sessionStorage.getItem(LAST_ACTIVITY_KEY) ?? Date.now(),
-          );
+        const response = await api<{ user: { id: string } }>("/api/auth/me");
+        if (!active) return;
+
+        const nextUserId = response.user.id;
+        const previousUserId = localStorage.getItem("utoolity.authenticated-user-id");
+        localStorage.setItem("utoolity.authenticated-user-id", nextUserId);
+
+        // A different authenticated account on this browser is the signal to
+        // leave the previous desktop and require the newly detected user to unlock.
+        if (previousUserId && previousUserId !== nextUserId) {
+          localStorage.setItem(AUTHENTICATED_SESSION_KEY, "false");
+          localStorage.setItem(SHELL_STATE_KEY, "locked");
+          localStorage.removeItem(SLEEP_STARTED_KEY);
+          setShellState("locked");
+          return;
         }
+
+        localStorage.setItem(AUTHENTICATED_SESSION_KEY, "true");
+        const savedState = localStorage.getItem(SHELL_STATE_KEY);
+        const nextState: ShellState =
+          savedState === "locked" || savedState === "sleep"
+            ? savedState
+            : "authenticated";
+        localStorage.setItem(SHELL_STATE_KEY, nextState);
+        setShellState(nextState);
+        const lastActivity = Number(localStorage.getItem(LAST_ACTIVITY_KEY) ?? Date.now());
+        lastActivityRef.current = Number.isFinite(lastActivity) ? lastActivity : Date.now();
       } catch (error) {
-        if (active) {
-          if (
-            !(error instanceof ApiError && error.status === 401) &&
-            (cachedShellState === "authenticated" || cachedShellState === "sleep")
-          ) {
-            setShellState(cachedShellState);
-          } else {
-            sessionStorage.removeItem(AUTHENTICATED_SESSION_KEY);
-            sessionStorage.removeItem(SHELL_STATE_KEY);
-            setShellState("locked");
-          }
+        if (!active) return;
+
+        // A timeout, backend outage, or even a temporarily unavailable session
+        // endpoint must not erase the locally cached device/user state.
+        if (cachedAuthenticated && cachedUserId) {
+          setShellState(cachedShellState);
+        } else {
+          setShellState("locked");
+        }
+
+        if (!(error instanceof ApiError && error.status === 401)) {
+          console.warn("Session verification unavailable; preserving cached device state.", error);
         }
       }
     }
@@ -153,7 +167,7 @@ export default function Home() {
 
     const recordActivity = () => {
       lastActivityRef.current = Date.now();
-      sessionStorage.setItem(LAST_ACTIVITY_KEY, String(lastActivityRef.current));
+      localStorage.setItem(LAST_ACTIVITY_KEY, String(lastActivityRef.current));
       sendSocketActivity();
     };
     const activityEvents = ["pointerdown", "keydown", "mousemove", "touchstart"];
@@ -163,8 +177,8 @@ export default function Home() {
 
     const timer = window.setInterval(() => {
       if (busyRef.current || Date.now() - lastActivityRef.current < SLEEP_AFTER_MS) return;
-      sessionStorage.setItem(SHELL_STATE_KEY, "sleep");
-      sessionStorage.setItem(SLEEP_STARTED_KEY, String(Date.now()));
+      localStorage.setItem(SHELL_STATE_KEY, "sleep");
+      localStorage.setItem(SLEEP_STARTED_KEY, String(Date.now()));
       setShellState("sleep");
     }, 1000);
     return () => {
@@ -179,12 +193,12 @@ export default function Home() {
     const startWork = () => {
       busyRef.current = true;
       lastActivityRef.current = Date.now();
-      sessionStorage.setItem(LAST_ACTIVITY_KEY, String(lastActivityRef.current));
+      localStorage.setItem(LAST_ACTIVITY_KEY, String(lastActivityRef.current));
     };
     const finishWork = () => {
       busyRef.current = false;
       lastActivityRef.current = Date.now();
-      sessionStorage.setItem(LAST_ACTIVITY_KEY, String(lastActivityRef.current));
+      localStorage.setItem(LAST_ACTIVITY_KEY, String(lastActivityRef.current));
       sendSocketActivity();
     };
     window.addEventListener("utoolity:work-started", startWork);
@@ -200,15 +214,15 @@ export default function Home() {
     if (shellState !== "sleep") return;
 
     const storedSleepStarted = Number(
-      sessionStorage.getItem(SLEEP_STARTED_KEY),
+      localStorage.getItem(SLEEP_STARTED_KEY),
     );
     const sleepStarted = Number.isFinite(storedSleepStarted) && storedSleepStarted > 0
       ? storedSleepStarted
       : Date.now();
-    sessionStorage.setItem(SLEEP_STARTED_KEY, String(sleepStarted));
+    localStorage.setItem(SLEEP_STARTED_KEY, String(sleepStarted));
     const timer = window.setInterval(() => {
       if (Date.now() - sleepStarted < LOCK_AFTER_MS - SLEEP_AFTER_MS) return;
-      sessionStorage.setItem(SHELL_STATE_KEY, "locked");
+      localStorage.setItem(SHELL_STATE_KEY, "locked");
       setShellState("locked");
     }, 1000);
 
@@ -225,15 +239,15 @@ export default function Home() {
   }, [shellState]);
 
   const enterSleep = () => {
-    sessionStorage.setItem(SHELL_STATE_KEY, "sleep");
-    sessionStorage.setItem(SLEEP_STARTED_KEY, String(Date.now()));
+    localStorage.setItem(SHELL_STATE_KEY, "sleep");
+    localStorage.setItem(SLEEP_STARTED_KEY, String(Date.now()));
     setShellState("sleep");
   };
 
   const enterLocked = () => {
-    sessionStorage.setItem(AUTHENTICATED_SESSION_KEY, "true");
-    sessionStorage.setItem(SHELL_STATE_KEY, "locked");
-    sessionStorage.removeItem(SLEEP_STARTED_KEY);
+    localStorage.setItem(AUTHENTICATED_SESSION_KEY, "true");
+    localStorage.setItem(SHELL_STATE_KEY, "locked");
+    localStorage.removeItem(SLEEP_STARTED_KEY);
     setShellState("locked");
   };
 
@@ -261,11 +275,11 @@ export default function Home() {
           initialAuthenticated={shellState === "sleep"}
           initialState={shellState === "sleep" ? "sleep" : "locked"}
           onUnlock={() => {
-            sessionStorage.setItem(AUTHENTICATED_SESSION_KEY, "true");
-            sessionStorage.setItem(SHELL_STATE_KEY, "authenticated");
-            sessionStorage.removeItem(SLEEP_STARTED_KEY);
+            localStorage.setItem(AUTHENTICATED_SESSION_KEY, "true");
+            localStorage.setItem(SHELL_STATE_KEY, "authenticated");
+            localStorage.removeItem(SLEEP_STARTED_KEY);
             lastActivityRef.current = Date.now();
-            sessionStorage.setItem(LAST_ACTIVITY_KEY, String(lastActivityRef.current));
+            localStorage.setItem(LAST_ACTIVITY_KEY, String(lastActivityRef.current));
             setShellState("authenticated");
           }}
         />
