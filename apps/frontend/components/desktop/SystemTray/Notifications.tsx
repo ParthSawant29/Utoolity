@@ -79,7 +79,7 @@ export default function Notifications({
             role="dialog"
             aria-label="Notifications"
             aria-hidden={!open}
-            className={`absolute right-0 top-[calc(100%+12px)] z-[86] w-[min(350px,calc(100vw-24px))] origin-top-right overflow-hidden rounded-3xl border border-border/80 bg-popover p-4 text-popover-foreground shadow-2xl shadow-black/20 transition-[opacity,transform] duration-200 ease-out sm:p-5 ${
+            className={`absolute right-0 top-[calc(100%+12px)] z-[86] w-[min(350px,calc(100vw-24px))] origin-top-right overflow-hidden rounded-3xl border border-border/80 bg-popover p-4 text-popover-foreground shadow-2xl shadow-black/20 transition-[opacity,transform] duration-200 ease-out desktop-panel sm:p-5 ${
               open
                 ? "translate-y-0 scale-100 opacity-100"
                 : "pointer-events-none -translate-y-2 scale-[0.98] opacity-0"
