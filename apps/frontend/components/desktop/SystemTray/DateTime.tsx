@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BatteryFull,
   Bell,
@@ -17,7 +17,6 @@ import {
   VolumeX,
 } from "lucide-react";
 import { useUserPreference } from "../../../lib/user-preference";
-import { api } from "../../../lib/api";
 
 type GrainLevel = "Off" | "Soft" | "Strong";
 
@@ -149,8 +148,10 @@ export default function DateTime({
     (theme === "auto" &&
       typeof window !== "undefined" &&
       window.matchMedia("(prefers-color-scheme: dark)").matches);
-  const [animation, setAnimation] = useState(true);
-  const animationPreferenceInitializedRef = useRef(false);
+  const [animation, setAnimation] = useUserPreference<"On" | "Off">(
+    "utoolity.animations",
+    "On",
+  );
   const [grain, setGrain] = useUserPreference<GrainLevel>("utoolity.grain", "Off");
   const [sound, setSound] = useState(true);
   const [fullscreen, setFullscreen] = useState(false);
@@ -183,24 +184,7 @@ export default function DateTime({
   }, [darkMode]);
 
   useEffect(() => {
-    if (!animationPreferenceInitializedRef.current) {
-      animationPreferenceInitializedRef.current = true;
-      const stored = window.localStorage.getItem("utoolity.animations");
-      if (stored) {
-        const enabled = stored.toLowerCase() !== "off";
-        document.documentElement.dataset.animation = enabled ? "on" : "off";
-        if (enabled !== animation) {
-          setAnimation(enabled);
-          return;
-        }
-      }
-    }
-    const value = animation ? "On" : "Off";
-    document.documentElement.dataset.animation = value.toLowerCase();
-    window.localStorage.setItem("utoolity.animations", value);
-    window.dispatchEvent(new CustomEvent("utoolity:preference-changed", {
-      detail: { key: "utoolity.animations", value },
-    }));
+    document.documentElement.dataset.animation = animation.toLowerCase();
   }, [animation]);
 
   useEffect(() => {
@@ -350,14 +334,7 @@ export default function DateTime({
                 value={animation ? "On" : "Off"}
                 active={animation}
                 iconClassName="bg-accent text-accent-foreground"
-                onClick={() => {
-                  const next = !animation;
-                  setAnimation(next);
-                  void api("/api/auth/preferences", {
-                    method: "PATCH",
-                    body: JSON.stringify({ "utoolity.animations": next ? "On" : "Off" }),
-                  }).catch(() => undefined);
-                }
+                onClick={() => setAnimation(animation === "On" ? "Off" : "On")}
               />
 
               <Setting
