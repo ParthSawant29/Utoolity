@@ -2,6 +2,8 @@ import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 const allowed = new Set([".avif", ".jpeg", ".jpg", ".png", ".webp"]);
 const prettyName = (value: string) =>
   value.replace(/[-_]+/g, " ").replace(/\b\w/g, (character) => character.toUpperCase());
@@ -47,8 +49,14 @@ export async function GET() {
         }),
     );
 
-    return NextResponse.json({ wallpapers: wallpapers.filter((wallpaper) => wallpaper !== null) });
+    return NextResponse.json(
+      { wallpapers: wallpapers.filter((wallpaper) => wallpaper !== null) },
+      { headers: { "Cache-Control": "public, max-age=3600, stale-while-revalidate=86400" } },
+    );
   } catch {
-    return NextResponse.json({ wallpapers: [] });
+    return NextResponse.json(
+      { wallpapers: [] },
+      { headers: { "Cache-Control": "no-store" } },
+    );
   }
 }
