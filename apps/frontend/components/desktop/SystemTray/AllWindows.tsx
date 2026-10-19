@@ -50,7 +50,7 @@ export default function AllWindows({ windows, onFocus, onClose }: Props) {
         <section
           role="dialog"
           aria-label="Open windows"
-          className="absolute right-0 top-9 z-90 w-[min(320px,calc(100vw-24px))] rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-2xl"
+          className="desktop-panel absolute right-0 top-9 z-90 w-[min(320px,calc(100vw-24px))] rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-2xl"
         >
           <header className="flex items-center justify-between px-2 py-1.5">
             <h2 className="text-sm font-semibold">Open windows</h2>
