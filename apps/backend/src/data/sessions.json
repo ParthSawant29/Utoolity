@@ -10,6 +10,17 @@
       "activeApps": [],
       "lastActivityAt": 1791987507110,
       "updatedAt": 1791987507113
+    },
+    "Wraith OS:a88d9804-1973-45ef-9228-d50f3c0d5bd6": {
+      "userId": "Wraith OS",
+      "hostname": "wraith-os",
+      "displayName": "Harshal Chaudhari",
+      "deviceId": "a88d9804-1973-45ef-9228-d50f3c0d5bd6",
+      "role": "intern",
+      "active": true,
+      "activeApps": [],
+      "lastActivityAt": 1792448483689,
+      "updatedAt": 1792448483689
     }
   }
 }

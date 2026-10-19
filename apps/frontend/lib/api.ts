@@ -1,4 +1,3 @@
-
 const API_URL = "";
 
 export function getDeviceId(): string | undefined {
@@ -6,12 +5,16 @@ export function getDeviceId(): string | undefined {
 
   const key = "utoolity.device-id";
   const stored = window.localStorage.getItem(key);
+
   if (stored) return stored;
 
-  const id = typeof window.crypto?.randomUUID === "function"
-    ? window.crypto.randomUUID()
-    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+  const id =
+    typeof window.crypto?.randomUUID === "function"
+      ? window.crypto.randomUUID()
+      : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+
   window.localStorage.setItem(key, id);
+
   return id;
 }
 
@@ -32,15 +35,16 @@ export async function api<T>(
   const hasBody = options.body != null;
 
   const isFormData =
-    typeof FormData !== "undefined" &&
-    options.body instanceof FormData;
+    typeof FormData !== "undefined" && options.body instanceof FormData;
 
   const headers = new Headers(options.headers);
   const deviceId = getDeviceId();
-  if (deviceId) headers.set("X-Utoolity-Device-Id", deviceId);
+
+  if (deviceId) {
+    headers.set("X-Utoolity-Device-Id", deviceId);
+  }
 
   if (isFormData) {
-    // Let the browser set the multipart boundary.
     headers.delete("Content-Type");
   } else if (hasBody) {
     headers.set("Content-Type", "application/json");
@@ -52,25 +56,31 @@ export async function api<T>(
   let lastError: unknown;
   let proxyUnavailable = false;
 
+  const baseUrl = API_URL.replace(/\/+$/, "");
+  const normalizedPath = path.replace(/^\/+/, "");
+  const url = `${baseUrl}/${normalizedPath}`;
+
   for (let attempt = 0; attempt < 5; attempt += 1) {
     try {
-      const nextResponse = await fetch(
-        `${API_URL.replace(/\\/+$/, "")}/${path.replace(/^\\/+/, "")}`,
-        {
-          ...options,
-          headers,
-          credentials: "include",
-          cache: "no-store",
-        },
-      );
+      const nextResponse = await fetch(url, {
+        ...options,
+        headers,
+        credentials: "include",
+        cache: "no-store",
+      });
 
-      // Next.js reports a refused upstream connection as an HTTP error response,
-      // not as a rejected fetch. Retry only recognizable proxy-connect failures.
       if ([500, 502, 503, 504].includes(nextResponse.status)) {
         const upstreamError = await nextResponse.clone().text();
-        proxyUnavailable = /ECONNREFUSED|Failed to proxy|connect\s+ECONNREFUSED|socket hang up/i.test(upstreamError);
+
+        proxyUnavailable =
+          /ECONNREFUSED|Failed to proxy|connect\s+ECONNREFUSED|socket hang up/i.test(
+            upstreamError,
+          );
+
         if (proxyUnavailable && attempt < 4) {
-          await new Promise((resolve) => window.setTimeout(resolve, 500 * (attempt + 1)));
+          await new Promise((resolve) =>
+            setTimeout(resolve, 500 * (attempt + 1)),
+          );
           continue;
         }
       }
@@ -79,21 +89,30 @@ export async function api<T>(
       break;
     } catch (error) {
       lastError = error;
+
       if (attempt === 4) {
         throw new Error(
           `Unable to reach the backend at ${API_URL || "the configured API proxy"}.`,
           { cause: error },
         );
       }
-      await new Promise((resolve) => window.setTimeout(resolve, 300 * (attempt + 1)));
+
+      await new Promise((resolve) =>
+        setTimeout(resolve, 300 * (attempt + 1)),
+      );
     }
   }
 
   if (!response) {
     if (proxyUnavailable) {
-      throw new Error("The backend is temporarily unavailable. Retrying did not restore the connection.");
+      throw new Error(
+        "The backend is temporarily unavailable. Retrying did not restore the connection.",
+      );
     }
-    throw lastError instanceof Error ? lastError : new Error("Network request failed.");
+
+    throw lastError instanceof Error
+      ? lastError
+      : new Error("Network request failed.");
   }
 
   const contentType = response.headers.get("content-type");

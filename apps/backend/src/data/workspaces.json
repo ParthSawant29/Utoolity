@@ -2,6 +2,9 @@
   "workspaces": {
     "L-MHP-IXMT2": {
       "openApps": []
+    },
+    "Wraith OS": {
+      "openApps": []
     }
   }
 }

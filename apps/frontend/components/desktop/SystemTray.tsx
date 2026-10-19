@@ -35,7 +35,7 @@ export default function SystemTray({
   }, []);
 
   return (
-    <div className="fixed right-4 top-4 z-[80] flex items-center gap-2">
+    <div className="z-999 fixed right-4 top-4 z-[80] flex items-center gap-2">
       <AllWindows
         windows={windows}
         onFocus={onFocusWindow}
