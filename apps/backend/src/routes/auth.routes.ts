@@ -81,6 +81,7 @@ async function writeSessions(sessions: Record<string, SessionRecord>): Promise<v
 }
 
 let sessionUpdateQueue: Promise<void> = Promise.resolve();
+let workspaceUpdateQueue: Promise<void> = Promise.resolve();
 const deviceInactivityTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 function getDeviceId(request: FastifyRequest, fallback: string): string {
@@ -573,7 +574,7 @@ export default async function authRoutes(app: FastifyInstance) {
         message.workspace !== null &&
         !Array.isArray(message.workspace)
       ) {
-        void (async () => {
+        const persistWorkspace = workspaceUpdateQueue.then(async () => {
           try {
             const sessions = await readSessions();
             const assigned = Object.values(sessions).find(
@@ -593,7 +594,9 @@ export default async function authRoutes(app: FastifyInstance) {
           } catch (error) {
             request.log.error(error, "Unable to persist workspace state over WebSocket");
           }
-        })();
+        });
+        workspaceUpdateQueue = persistWorkspace;
+        void persistWorkspace;
         return;
       }
 
