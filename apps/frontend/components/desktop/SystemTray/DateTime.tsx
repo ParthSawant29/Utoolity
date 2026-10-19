@@ -17,6 +17,7 @@ import {
   VolumeX,
 } from "lucide-react";
 import { useUserPreference } from "../../../lib/user-preference";
+import { api } from "../../../lib/api";
 
 type GrainLevel = "Off" | "Soft" | "Strong";
 
@@ -349,8 +350,13 @@ export default function DateTime({
                 value={animation ? "On" : "Off"}
                 active={animation}
                 iconClassName="bg-accent text-accent-foreground"
-                onClick={() =>
-                  setAnimation((value) => !value)
+                onClick={() => {
+                  const next = !animation;
+                  setAnimation(next);
+                  void api("/api/auth/preferences", {
+                    method: "PATCH",
+                    body: JSON.stringify({ "utoolity.animations": next ? "On" : "Off" }),
+                  }).catch(() => undefined);
                 }
               />
 
