@@ -1,4 +1,4 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
 import cookie from "@fastify/cookie";
 import session from "@fastify/session";
@@ -89,6 +89,62 @@ await app.register(multipart, {
 
 // Register WebSocket support before registering any WebSocket routes.
 await app.register(websocket);
+
+// Bind every protected API request to both the authenticated cookie session and
+// the persistent browser/device ID. The device ID identifies a client; it is
+// never accepted as a substitute for an authenticated session.
+const devicePublicPaths = new Set([
+  "/api/auth/login",
+  "/api/lockscreen/unlock",
+  "/api/lockscreen/me",
+  "/api/auth/socket",
+]);
+
+app.addHook("preHandler", async (request, reply) => {
+  if (!request.url.startsWith("/api/") || request.method === "OPTIONS") return;
+
+  const pathname = request.url.split("?")[0];
+  if (pathname === "/api/auth/socket") return;
+
+  const deviceId = request.headers["x-utoolity-device-id"];
+  if (
+    typeof deviceId !== "string" ||
+    !/^[a-zA-Z0-9._:-]{8,128}$/.test(deviceId)
+  ) {
+    return reply.code(400).send({
+      message: "A valid X-Utoolity-Device-Id header is required.",
+    });
+  }
+
+  if (devicePublicPaths.has(pathname)) return;
+
+  const session = (
+    request as FastifyRequest & {
+      session?: {
+        userId?: string;
+        deviceId?: string;
+        save(callback: (error?: Error) => void): void;
+      };
+    }
+  ).session;
+
+  if (!session?.userId) {
+    return reply.code(401).send({ message: "Not authenticated." });
+  }
+
+  if (session.deviceId && session.deviceId !== deviceId) {
+    return reply.code(409).send({
+      message: "This browser session belongs to a different device identity.",
+    });
+  }
+
+  if (!session.deviceId) {
+    session.deviceId = deviceId;
+    await new Promise<void>((resolve, reject) => {
+      session.save((error) => (error ? reject(error) : resolve()));
+    });
+  }
+});
 
 // Health check
 app.get("/health", async () => ({
