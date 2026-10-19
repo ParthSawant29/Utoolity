@@ -173,6 +173,7 @@ export default function Home() {
 
         const nextUserId = response.user.id;
         const previousUserId = localStorage.getItem("utoolity.authenticated-user-id");
+        localStorage.setItem("utoolity.cached-user", JSON.stringify(response.user));
         localStorage.setItem("utoolity.authenticated-user-id", nextUserId);
 
         // A different authenticated account on this browser is the signal to
