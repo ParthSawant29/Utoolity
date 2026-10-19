@@ -207,6 +207,7 @@ function Lockcard({
       if (authenticatedUser) {
         setProfile({ ...authenticatedUser, locked: true });
         setHostname(authenticatedUser.hostname);
+        window.localStorage.setItem("utoolity.authenticated-user-id", authenticatedUser.id);
         window.localStorage.setItem(HOSTNAME_STORAGE_KEY, authenticatedUser.hostname);
         setError("");
         setLoadingProfile(false);
@@ -318,7 +319,7 @@ function Lockcard({
   }, [clearInactivityTimer, lockscreenState, profile, startInactivityTimer]);
   const handleUnlock = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const assignedHostname = (profile?.hostname || hostname).trim();
+    const assignedHostname = (hostname || profile?.hostname || "").trim();
     if (!assignedHostname || !password || checking || !profile) return;
     setChecking(true);
     setError("");
@@ -334,6 +335,8 @@ function Lockcard({
       const user = response.user ?? profile;
       setProfile({ ...user, locked: false });
       setHostname(user.hostname);
+      window.localStorage.setItem("utoolity.authenticated-user-id", user.id);
+      window.localStorage.setItem("utoolity.authenticated", "true");
       window.localStorage.setItem(HOSTNAME_STORAGE_KEY, user.hostname);
       leaveLockscreen();
     } catch (cause) {
