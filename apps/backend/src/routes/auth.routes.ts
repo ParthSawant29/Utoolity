@@ -543,9 +543,13 @@ export default async function authRoutes(app: FastifyInstance) {
     };
 
     socket.on("message", (raw: Buffer | ArrayBuffer | Buffer[]) => {
-      let message: { type?: unknown; deviceId?: unknown };
+      let message: { type?: unknown; deviceId?: unknown; workspace?: unknown };
       try {
-        message = JSON.parse(raw.toString()) as { type?: unknown; deviceId?: unknown };
+        message = JSON.parse(raw.toString()) as {
+          type?: unknown;
+          deviceId?: unknown;
+          workspace?: unknown;
+        };
       } catch {
         return;
       }
@@ -561,8 +565,39 @@ export default async function authRoutes(app: FastifyInstance) {
           void saveSession(request);
         }
       }
-      if (message.type !== "activity" || deviceId === "pending-device") return;
+      if (deviceId === "pending-device") return;
 
+      if (
+        message.type === "workspace" &&
+        typeof message.workspace === "object" &&
+        message.workspace !== null &&
+        !Array.isArray(message.workspace)
+      ) {
+        void (async () => {
+          try {
+            const sessions = await readSessions();
+            const assigned = Object.values(sessions).find(
+              (record) => record.deviceId === deviceId,
+            );
+            if (assigned && assigned.userId !== userId) {
+              socket.close(1008, "A different user is assigned to this device");
+              return;
+            }
+            const workspaces = await readWorkspaces();
+            workspaces[userId] = message.workspace as WorkspaceState;
+            await writeFile(
+              workspacesFilePath,
+              `${JSON.stringify({ workspaces }, null, 2)}\n`,
+              "utf8",
+            );
+          } catch (error) {
+            request.log.error(error, "Unable to persist workspace state over WebSocket");
+          }
+        })();
+        return;
+      }
+
+      if (message.type !== "activity") return;
       resetInactivityTimer();
       void persistActivity(true);
     });
