@@ -88,25 +88,28 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
   useEffect(() => {
     let cancelled = false;
     setIsDark(document.documentElement.classList.contains("dark"));
-    void api<{ user: { id: string } }>("/api/auth/me")
-      .then(({ user }) => {
-        if (cancelled) return;
-        setWorkspaceUserId(user.id);
-        const storageKey = `utoolity.open-apps.${user.id}`;
-        try {
-          const saved = localStorage.getItem(storageKey);
-          if (saved) {
-            const restored = JSON.parse(saved) as Array<{ app: DesktopAppId; filePath?: string; window?: WindowState }>;
-            if (Array.isArray(restored)) {
-              setOpenApps(restored);
-              setActiveAppKey(restored.at(-1) ? `${restored.at(-1)?.app}:${restored.at(-1)?.filePath ?? ""}` : null);
-            }
-          }
-        } catch {
-          localStorage.removeItem(storageKey);
+    // Home verifies the session before mounting the desktop. Reuse its cached
+    // identity rather than issuing another /api/auth/me request here.
+    const userId = localStorage.getItem("utoolity.authenticated-user-id");
+    if (!userId) {
+      setWorkspaceHydrated(true);
+      return () => { cancelled = true; };
+    }
+    setWorkspaceUserId(userId);
+    const storageKey = `utoolity.open-apps.${userId}`;
+    try {
+      const saved = localStorage.getItem(storageKey);
+      if (saved) {
+        const restored = JSON.parse(saved) as Array<{ app: DesktopAppId; filePath?: string; window?: WindowState }>;
+        if (Array.isArray(restored)) {
+          setOpenApps(restored);
+          setActiveAppKey(restored.at(-1) ? `${restored.at(-1)?.app}:${restored.at(-1)?.filePath ?? ""}` : null);
         }
-        return api<{ workspace: { openApps?: typeof openApps } }>("/api/auth/workspace");
-      })
+      }
+    } catch {
+      localStorage.removeItem(storageKey);
+    }
+    void api<{ workspace: { openApps?: typeof openApps } }>("/api/auth/workspace")
       .then((result) => {
         if (!cancelled && result && Array.isArray(result.workspace.openApps)) {
           setOpenApps(result.workspace.openApps);
@@ -117,9 +120,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
       .finally(() => {
         if (!cancelled) setWorkspaceHydrated(true);
       });
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   useEffect(() => {
@@ -141,13 +142,15 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
 
   useEffect(() => {
     if (!workspaceHydrated || !workspaceUserId) return;
-    localStorage.setItem(`utoolity.open-apps.${workspaceUserId}`, JSON.stringify(openApps));
     const timer = window.setTimeout(() => {
-      void api("/api/auth/workspace", {
-        method: "PUT",
-        body: JSON.stringify({ openApps }),
-      }).catch(() => undefined);
-    }, 300);
+      const workspace = { openApps };
+      localStorage.setItem(`utoolity.open-apps.${workspaceUserId}`, JSON.stringify(openApps));
+      // Geometry stays local while the pointer moves; send one settled snapshot
+      // over the existing authenticated WebSocket after the gesture.
+      window.dispatchEvent(new CustomEvent("utoolity:workspace-state-changed", {
+        detail: workspace,
+      }));
+    }, 350);
     return () => window.clearTimeout(timer);
   }, [openApps, workspaceHydrated, workspaceUserId]);
 
