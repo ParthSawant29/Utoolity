@@ -573,6 +573,14 @@ export default async function authRoutes(app: FastifyInstance) {
 
     const session = getSession(request);
     let deviceId = session.deviceId ?? "pending-device";
+    const savedOwnerUserId = session.collaborationOwnerUserId;
+    const restoredPermission = savedOwnerUserId ? sharedSessions.get(savedOwnerUserId)?.get(userId) : undefined;
+    const restoredOwnerUserId = restoredPermission ? savedOwnerUserId : undefined;
+    if (savedOwnerUserId && !restoredOwnerUserId) {
+      delete session.collaborationOwnerUserId;
+      delete session.collaborationPermission;
+      void saveSession(request);
+    }
     const clientKey = `${userId}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
     const client: CollaborationClient = {
       socket,
@@ -580,6 +588,8 @@ export default async function authRoutes(app: FastifyInstance) {
       userId,
       displayName: userId,
       role: session.role ?? "intern",
+      joinedOwnerUserId: restoredOwnerUserId,
+      permission: restoredOwnerUserId ? restoredPermission : undefined,
     };
     collaborationClients.set(clientKey, client);
     void readUsers().then(async (users) => {
@@ -589,6 +599,30 @@ export default async function authRoutes(app: FastifyInstance) {
         client.role = user.role;
       }
       broadcastPresence();
+      if (client.joinedOwnerUserId && client.permission && socket.readyState === 1) {
+        const owner = findById(users, client.joinedOwnerUserId);
+        const workspaces = await readWorkspaces();
+        const workspace = liveWorkspaces.get(client.joinedOwnerUserId) ?? workspaces[client.joinedOwnerUserId] ?? { openApps: [] };
+        socket.send(JSON.stringify({
+          type: "join-approved",
+          ownerUserId: client.joinedOwnerUserId,
+          ownerDisplayName: owner?.displayName ?? client.joinedOwnerUserId,
+          permission: client.permission,
+          workspace,
+        }));
+      }
+      const ownerMembers = sharedSessions.get(userId);
+      if (ownerMembers?.size) {
+        socket.send(JSON.stringify({
+          type: "shared-members",
+          ownerUserId: userId,
+          members: [...ownerMembers.entries()].map(([memberUserId, permission]) => ({
+            userId: memberUserId,
+            permission,
+            displayName: [...collaborationClients.values()].find((entry) => entry.userId === memberUserId)?.displayName ?? memberUserId,
+          })),
+        }));
+      }
     }).catch((error) => request.log.warn({ err: error }, "Unable to resolve collaboration profile"));
     broadcastPresence();
 
