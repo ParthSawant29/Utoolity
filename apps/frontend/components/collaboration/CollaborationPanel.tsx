@@ -6,6 +6,7 @@ import { getDeviceId } from "@/lib/api";
 
 type Peer = { userId: string; displayName: string; role: string };
 type ChatMessage = { id: string; userId: string; displayName: string; text: string; timestamp: number };
+type Cursor = { userId: string; displayName: string; x: number; y: number; timestamp: number };
 type SignalPayload =
   | { type: "offer"; description: RTCSessionDescriptionInit }
   | { type: "answer"; description: RTCSessionDescriptionInit }
@@ -19,6 +20,7 @@ export default function CollaborationPanel() {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"people" | "chat">("people");
   const [peers, setPeers] = useState<Peer[]>([]);
+  const [cursors, setCursors] = useState<Record<string, Cursor>>({});
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [connected, setConnected] = useState(false);
@@ -80,13 +82,29 @@ export default function CollaborationPanel() {
         let data: Record<string, unknown>;
         try { data = JSON.parse(String(event.data)) as Record<string, unknown>; } catch { return; }
         if (data.type === "presence" && Array.isArray(data.users)) {
+          const currentUserId = window.localStorage.getItem("utoolity.authenticated-user-id");
           const next = data.users.filter((item): item is Peer =>
             !!item && typeof item === "object" &&
             typeof (item as Peer).userId === "string" &&
-            typeof (item as Peer).displayName === "string",
+            typeof (item as Peer).displayName === "string" &&
+            (item as Peer).userId !== currentUserId,
           );
           peersRef.current = next;
           setPeers(next);
+          return;
+        }
+        if (data.type === "cursor" && typeof data.userId === "string" &&
+            typeof data.x === "number" && typeof data.y === "number") {
+          setCursors((current) => ({
+            ...current,
+            [data.userId as string]: {
+              userId: data.userId as string,
+              displayName: typeof data.displayName === "string" ? data.displayName : "Collaborator",
+              x: data.x as number,
+              y: data.y as number,
+              timestamp: Date.now(),
+            },
+          }));
           return;
         }
         if (data.type === "chat" && typeof data.text === "string") {
@@ -178,6 +196,12 @@ export default function CollaborationPanel() {
 
   return (
     <div className="fixed bottom-4 right-4 z-[100] select-none">
+      {Object.values(cursors).map((cursor) => (
+        <div key={cursor.userId} aria-hidden="true" className="pointer-events-none fixed z-[90] flex items-center gap-1.5 transition-[left,top] duration-75" style={{ left: `${cursor.x * 100}vw`, top: `${cursor.y * 100}vh` }}>
+          <span className="size-3 rounded-full border-2 border-white bg-primary shadow" />
+          <span className="rounded-md bg-primary px-2 py-1 text-[10px] font-semibold text-primary-foreground shadow">{cursor.displayName}</span>
+        </div>
+      ))}
       {Object.entries(remoteStreams).map(([userId, stream]) => (
         <RemoteScreen key={userId} stream={stream} name={peers.find((peer) => peer.userId === userId)?.displayName ?? "Collaborator"} />
       ))}
