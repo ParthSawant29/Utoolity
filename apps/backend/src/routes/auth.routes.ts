@@ -807,21 +807,6 @@ export default async function authRoutes(app: FastifyInstance) {
         return;
       }
 
-      if (message.type === "annotation-state") {
-        const ownerUserId = client.joinedOwnerUserId ?? userId;
-        if (client.joinedOwnerUserId && client.permission !== "editor") return;
-        const payload = {
-          type: "annotation-state",
-          ownerUserId,
-          fromUserId: userId,
-          fromDisplayName: client.displayName,
-          payload: message.payload,
-          timestamp: Date.now(),
-        };
-        sendToSharedSession(ownerUserId, payload, userId);
-        return;
-      }
-
       if (message.type === "chat") {
         if (typeof message.text !== "string" || !message.text.trim()) return;
         const text = message.text.trim().slice(0, 2000);
@@ -849,6 +834,21 @@ export default async function authRoutes(app: FastifyInstance) {
           y: Math.max(0, Math.min(1, message.y)),
           timestamp: Date.now(),
         }, userId);
+        return;
+      }
+
+      if (message.type === "annotation-state") {
+        const ownerUserId = client.joinedOwnerUserId ?? userId;
+        if (client.joinedOwnerUserId && client.permission !== "editor") return;
+        const payload = {
+          type: "annotation-state",
+          ownerUserId,
+          fromUserId: userId,
+          fromDisplayName: client.displayName,
+          payload: message.payload,
+          timestamp: Date.now(),
+        };
+        sendToSharedSession(ownerUserId, payload, userId);
         return;
       }
 
