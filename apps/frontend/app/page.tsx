@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import Desktop from "@/components/desktop/Desktop";
+import DesktopBackground from "@/components/desktop/DesktopBackground";
 import Lockcard from "@/components/lockscreen/LockcardEntry";
 import { api, ApiError, getDeviceId } from "@/lib/api";
 import Image from "next/image";
@@ -355,6 +356,8 @@ export default function Home() {
       ) : shellState === "authenticated" ? (
         <Desktop onSleep={enterSleep} onLock={enterLocked} />
       ) : (
+        <>
+        <DesktopBackground />
         <Lockcard
           socketDisconnected={false}
           initialAuthenticated={shellState === "sleep"}
@@ -368,6 +371,7 @@ export default function Home() {
             setShellState("authenticated");
           }}
         />
+        </>
       )}
     </div>
   );
