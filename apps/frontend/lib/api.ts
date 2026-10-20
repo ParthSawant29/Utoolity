@@ -129,6 +129,18 @@ async function performApi<T>(
   }
 
   if (!response.ok) {
+    // A protected API returning 401 means the server-side session is gone.
+    // Notify the desktop shell so cached profile UI cannot masquerade as a
+    // live session. Network errors do not reach this branch and remain offline-safe.
+    if (
+      response.status === 401 &&
+      !/^\\/api\\/(auth\\/(login|logout|me|socket)|lockscreen\\/(unlock|me))(?:[/?]|$)/.test(path)
+    ) {
+      window.dispatchEvent(new CustomEvent("utoolity:session-invalid", {
+        detail: { path, status: response.status },
+      }));
+    }
+
     const message =
       typeof body === "object" &&
       body !== null &&
