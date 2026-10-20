@@ -27,6 +27,9 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
   const [activeAppKey, setActiveAppKey] = useState<string | null>(null);
   const [workspaceHydrated, setWorkspaceHydrated] = useState(false);
   const [workspaceUserId, setWorkspaceUserId] = useState<string | null>(null);
+  const [sharedOwnerUserId, setSharedOwnerUserId] = useState<string | null>(null);
+  const [sharedPermission, setSharedPermission] = useState<"view" | "editor" | null>(null);
+  const isSharedViewer = sharedOwnerUserId !== null;
   const closingWindowKeysRef = useRef(new Set<string>());
   useEffect(() => {
     const updateScale = () => {
@@ -38,7 +41,13 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
     return () => window.removeEventListener("resize", updateScale);
   }, []);
 
-  const openApp = (app: DesktopAppId, filePath?: string) => {
+  const openApp = useCallback((app: DesktopAppId, filePath?: string) => {
+    if (isSharedViewer) {
+      if (sharedPermission === "editor") {
+        window.dispatchEvent(new CustomEvent("utoolity:shared-command-outgoing", { detail: { command: "open-app", payload: { app, filePath } } }));
+      }
+      return;
+    }
     const key = `${app}:${filePath ?? ""}`;
     setActiveAppKey(key);
     setOpenApps((current) =>
@@ -46,7 +55,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
         ? current
         : [...current, { app, filePath }],
     );
-  };
+  }, [isSharedViewer, sharedPermission]);
   const closeMenu = useCallback(() => setMenu(null), []);
   const updateWindowState = useCallback((key: string, window: WindowState) => {
     setOpenApps((current) =>
@@ -77,6 +86,10 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
     };
   });
   const closeWindow = useCallback((key: string) => {
+    if (isSharedViewer) {
+      if (sharedPermission === "editor") window.dispatchEvent(new CustomEvent("utoolity:shared-command-outgoing", { detail: { command: "close-app", payload: key } }));
+      return;
+    }
     if (closingWindowKeysRef.current.has(key)) return;
     closingWindowKeysRef.current.add(key);
     window.dispatchEvent(
@@ -89,7 +102,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
       );
       setExpandedAppKey((current) => (current === key ? null : current));
     }, 180);
-  }, []);
+  }, [isSharedViewer, sharedPermission]);
 
   useEffect(() => {
     if (activeAppKey && openApps.some((item) => `${item.app}:${item.filePath ?? ""}` === activeAppKey)) {
@@ -138,6 +151,73 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
   }, []);
 
   useEffect(() => {
+    const applySharedSession = (event: Event) => {
+      const detail = (event as CustomEvent<{ ownerUserId?: string; permission?: "view" | "editor"; workspace?: { openApps?: typeof openApps } }>).detail;
+      if (!detail?.ownerUserId) return;
+      setSharedOwnerUserId(detail.ownerUserId);
+      setSharedPermission(detail.permission === "editor" ? "editor" : "view");
+      if (Array.isArray(detail.workspace?.openApps)) {
+        const next = detail.workspace.openApps.filter((item) => item && typeof item.app === "string") as typeof openApps;
+        setOpenApps(next);
+        setActiveAppKey(next.at(-1) ? `${next.at(-1)?.app}:${next.at(-1)?.filePath ?? ""}` : null);
+      }
+      setWorkspaceHydrated(true);
+    };
+    const applySharedWorkspace = (event: Event) => {
+      const detail = (event as CustomEvent<{ ownerUserId?: string; workspace?: { openApps?: typeof openApps } }>).detail;
+      if (!detail?.workspace || (sharedOwnerUserId && detail.ownerUserId !== sharedOwnerUserId)) return;
+      if (Array.isArray(detail.workspace.openApps)) {
+        const next = detail.workspace.openApps.filter((item) => item && typeof item.app === "string") as typeof openApps;
+        setOpenApps(next);
+        setActiveAppKey(next.at(-1) ? `${next.at(-1)?.app}:${next.at(-1)?.filePath ?? ""}` : null);
+      }
+    };
+    const applyPermission = (event: Event) => {
+      const detail = (event as CustomEvent<{ permission?: "view" | "editor" }>).detail;
+      setSharedPermission(detail?.permission === "editor" ? "editor" : "view");
+    };
+    const endSharedSession = () => {
+      setSharedOwnerUserId(null);
+      setSharedPermission(null);
+      window.location.reload();
+    };
+    const applyCommand = (event: Event) => {
+      if (isSharedViewer) return;
+      const detail = (event as CustomEvent<{ fromUserId?: string; fromDisplayName?: string; command?: string; payload?: unknown }>).detail;
+      if (!detail?.command) return;
+      if (detail.command === "open-app" && detail.payload && typeof detail.payload === "object") {
+        const payload = detail.payload as { app?: DesktopAppId; filePath?: string };
+        if (payload.app && Object.prototype.hasOwnProperty.call(appTitles, payload.app)) openApp(payload.app, payload.filePath);
+        window.dispatchEvent(new CustomEvent("utoolity:collaboration-audit", { detail: { actorUserId: detail.fromUserId, actorDisplayName: detail.fromDisplayName, action: "open-app", target: payload.app } }));
+      }
+      if (detail.command === "close-app" && typeof detail.payload === "string") {
+        closeWindow(detail.payload);
+        window.dispatchEvent(new CustomEvent("utoolity:collaboration-audit", { detail: { actorUserId: detail.fromUserId, actorDisplayName: detail.fromDisplayName, action: "close-app", target: detail.payload } }));
+      }
+      if (detail.command === "focus-app" && typeof detail.payload === "string") {
+        setActiveAppKey(detail.payload);
+        window.dispatchEvent(new CustomEvent("utoolity:collaboration-audit", { detail: { actorUserId: detail.fromUserId, actorDisplayName: detail.fromDisplayName, action: "focus-app", target: detail.payload } }));
+      }
+      if (detail.command === "workspace" && detail.payload && typeof detail.payload === "object") {
+        const workspace = detail.payload as { openApps?: typeof openApps };
+        if (Array.isArray(workspace.openApps)) setOpenApps(workspace.openApps);
+      }
+    };
+    window.addEventListener("utoolity:shared-session-changed", applySharedSession);
+    window.addEventListener("utoolity:shared-workspace", applySharedWorkspace);
+    window.addEventListener("utoolity:shared-permission-changed", applyPermission);
+    window.addEventListener("utoolity:shared-session-ended", endSharedSession);
+    window.addEventListener("utoolity:shared-workspace-command", applyCommand);
+    return () => {
+      window.removeEventListener("utoolity:shared-session-changed", applySharedSession);
+      window.removeEventListener("utoolity:shared-workspace", applySharedWorkspace);
+      window.removeEventListener("utoolity:shared-permission-changed", applyPermission);
+      window.removeEventListener("utoolity:shared-session-ended", endSharedSession);
+      window.removeEventListener("utoolity:shared-workspace-command", applyCommand);
+    };
+  }, [sharedOwnerUserId, isSharedViewer, openApp, closeWindow]);
+
+  useEffect(() => {
     const closeFileManager = () => closeWindow("files:");
     window.addEventListener("utoolity:close-file-manager", closeFileManager);
     return () => window.removeEventListener("utoolity:close-file-manager", closeFileManager);
@@ -155,7 +235,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
   }, []);
 
   useEffect(() => {
-    if (!workspaceHydrated || !workspaceUserId) return;
+    if (!workspaceHydrated || !workspaceUserId || isSharedViewer) return;
     const timer = window.setTimeout(() => {
       const workspace = { openApps };
       localStorage.setItem(`utoolity.open-apps.${workspaceUserId}`, JSON.stringify(openApps));
@@ -166,7 +246,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
       }));
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [openApps, workspaceHydrated, workspaceUserId]);
+  }, [openApps, workspaceHydrated, workspaceUserId, isSharedViewer]);
 
   const openMenu = (event: MouseEvent<HTMLElement>) => {
     event.preventDefault();
@@ -268,7 +348,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
       <DesktopBackground />
       {!hideDesktopChrome && <DesktopApps onOpen={openApp} />}
       {!hideDesktopChrome && <Profile onSleep={onSleep} />}
-      {!hideDesktopChrome && (
+      {!hideDesktopChrome && !isSharedViewer && (
         <SystemTray
           windows={windowSummaries}
           onFocusWindow={(key) => {
@@ -324,6 +404,13 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
         </DesktopWindow>
         );
       })}
+      {isSharedViewer && (
+        <div className="fixed left-4 top-4 z-[1001] flex items-center gap-3 rounded-full border border-border bg-card/90 px-4 py-2 text-xs shadow-lg backdrop-blur-xl">
+          <span>Viewing shared desktop</span>
+          <span className="rounded-full bg-primary/10 px-2 py-1 font-semibold">{sharedPermission === "editor" ? "Editor" : "View only"}</span>
+          <button type="button" onClick={() => window.dispatchEvent(new CustomEvent("utoolity:leave-shared-session"))} className="rounded-full border border-border px-2 py-1 hover:bg-muted">Leave</button>
+        </div>
+      )}
       <CollaborationPanel />
       <DesktopContextMenu
         open={menu !== null}
