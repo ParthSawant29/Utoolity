@@ -252,7 +252,8 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
         if (typeof workspace.activeAppKey === "string") setActiveAppKey(workspace.activeAppKey);
         if (typeof workspace.context?.boundingBoxFolder === "string" && workspace.context.boundingBoxFolder) {
           localStorage.setItem("utoolity.bounding-box.folder", workspace.context.boundingBoxFolder);
-          localStorage.setItem("utoolity.polygon.folder", workspace.context.boundingBoxFolder);
+          localStorage.setItem("utoolity.polygon.folder", typeof workspace.context.polygonFolder === "string" ? workspace.context.polygonFolder : workspace.context.boundingBoxFolder);
+          window.dispatchEvent(new CustomEvent("utoolity:shared-folder-changed", { detail: { path: workspace.context.boundingBoxFolder } }));
         }
         window.dispatchEvent(new CustomEvent("utoolity:collaboration-audit", {
           detail: {
