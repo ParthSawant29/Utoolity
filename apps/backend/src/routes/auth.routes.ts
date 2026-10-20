@@ -549,7 +549,11 @@ export default async function authRoutes(app: FastifyInstance) {
     const onlineIds = new Set([...collaborationClients.values()].map((client) => client.userId));
     return {
       users: users.filter((user) => user.id !== "guest-intern" && user.id !== currentUserId).map((user) => ({
-        ...publicUser(user),
+        userId: user.id,
+        id: user.id,
+        hostname: user.hostname,
+        displayName: user.displayName,
+        role: user.role,
         online: onlineIds.has(user.id),
       })),
     };
@@ -748,7 +752,7 @@ export default async function authRoutes(app: FastifyInstance) {
         return;
       }
 
-      if (message.type === "shared-permission" && client.role === "admin") {
+      if (message.type === "shared-permission" && sharedSessions.has(userId)) {
         if (typeof message.targetUserId !== "string" || (message.permission !== "view" && message.permission !== "editor")) return;
         const members = sharedSessions.get(userId);
         if (!members?.has(message.targetUserId)) return;
