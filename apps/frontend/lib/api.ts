@@ -134,7 +134,7 @@ async function performApi<T>(
     // live session. Network errors do not reach this branch and remain offline-safe.
     if (
       response.status === 401 &&
-      !/^\\/api\\/(auth\\/(login|logout|me|socket)|lockscreen\\/(unlock|me))(?:[/?]|$)/.test(path)
+      !/^\/api\/(auth\/(login|logout|me|socket)|lockscreen\/(unlock|me))(?:[/?]|$)/.test(path)
     ) {
       window.dispatchEvent(new CustomEvent("utoolity:session-invalid", {
         detail: { path, status: response.status },
