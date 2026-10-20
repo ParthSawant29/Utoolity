@@ -112,6 +112,19 @@ export default function CollaborationPanel() {
           window.dispatchEvent(new CustomEvent("utoolity:shared-permission-changed", { detail: { permission } }));
           return;
         }
+        if (data.type === "shared-session-active" && typeof data.memberUserId === "string") {
+          setMembers((current) => current.some((member) => member.userId === data.memberUserId)
+            ? current.map((member) => member.userId === data.memberUserId
+                ? { ...member, displayName: typeof data.memberDisplayName === "string" ? data.memberDisplayName : member.displayName, permission: data.permission === "editor" ? "editor" : "view" }
+                : member)
+            : [...current, {
+                userId: data.memberUserId as string,
+                displayName: typeof data.memberDisplayName === "string" ? data.memberDisplayName : data.memberUserId as string,
+                permission: data.permission === "editor" ? "editor" : "view",
+              }]);
+          setJoinedUsers((current) => new Set(current).add(data.memberUserId as string));
+          return;
+        }
         if (data.type === "shared-members" && Array.isArray(data.members)) {
           const nextMembers = data.members as Member[];
           setMembers(nextMembers);
@@ -135,7 +148,7 @@ export default function CollaborationPanel() {
           setCursors((current) => ({ ...current, [data.userId as string]: {
             userId: data.userId as string,
             displayName: typeof data.displayName === "string" ? data.displayName : "Collaborator",
-            x: data.x as number, y: data.y as number, timestamp: Date.now(),
+            x: data.x as number, y: data.y as number, timestamp: typeof data.timestamp === "number" ? data.timestamp : Date.now(),
           }}));
           return;
         }
