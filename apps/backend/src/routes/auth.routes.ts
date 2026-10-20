@@ -33,6 +33,8 @@ type AuthSession = {
   deviceId?: string;
   role?: "intern" | "admin";
   lastActivityAt?: number;
+  collaborationOwnerUserId?: string;
+  collaborationPermission?: "view" | "editor";
   save(callback: (error?: Error) => void): void;
   destroy(callback: (error?: Error) => void): void;
 };
@@ -93,6 +95,7 @@ const deviceInactivityTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
 type CollaborationClient = {
   socket: { readyState: number; send(data: string): void };
+  request: FastifyRequest;
   userId: string;
   displayName: string;
   role: string;
@@ -572,6 +575,7 @@ export default async function authRoutes(app: FastifyInstance) {
     const clientKey = `${userId}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
     const client: CollaborationClient = {
       socket,
+      request,
       userId,
       displayName: userId,
       role: session.role ?? "intern",
@@ -714,6 +718,10 @@ export default async function authRoutes(app: FastifyInstance) {
           if (target.userId === message.targetUserId) {
             target.joinedOwnerUserId = userId;
             target.permission = permission;
+            const targetSession = getSession(target.request);
+            targetSession.collaborationOwnerUserId = userId;
+            targetSession.collaborationPermission = permission;
+            void saveSession(target.request);
           }
         }
         void readWorkspaces().then((workspaces) => {
@@ -745,6 +753,10 @@ export default async function authRoutes(app: FastifyInstance) {
           if (target.userId === userId) {
             target.joinedOwnerUserId = undefined;
             target.permission = undefined;
+            const targetSession = getSession(target.request);
+            delete targetSession.collaborationOwnerUserId;
+            delete targetSession.collaborationPermission;
+            void saveSession(target.request);
           }
         }
         sendToUser(ownerUserId, { type: "shared-member-left", userId, displayName: client.displayName });
@@ -914,27 +926,37 @@ export default async function authRoutes(app: FastifyInstance) {
     });
 
     socket.on("close", () => {
-      if (client.joinedOwnerUserId) {
-        sharedSessions.get(client.joinedOwnerUserId)?.delete(userId);
-        sendToUser(client.joinedOwnerUserId, { type: "shared-member-left", userId, displayName: client.displayName });
-      }
-      const ownerMembers = sharedSessions.get(userId);
-      if (ownerMembers) {
-        for (const memberId of ownerMembers.keys()) {
-          sendToUser(memberId, { type: "shared-session-ended", ownerUserId: userId });
-          for (const target of collaborationClients.values()) {
-            if (target.userId === memberId) {
-              target.joinedOwnerUserId = undefined;
-              target.permission = undefined;
+      collaborationClients.delete(clientKey);
+      const otherUserClients = [...collaborationClients.values()].filter((entry) => entry.userId === userId);
+      if (otherUserClients.length === 0) {
+        if (client.joinedOwnerUserId) {
+          sharedSessions.get(client.joinedOwnerUserId)?.delete(userId);
+          sendToUser(client.joinedOwnerUserId, { type: "shared-member-left", userId, displayName: client.displayName });
+          delete session.collaborationOwnerUserId;
+          delete session.collaborationPermission;
+          void saveSession(request);
+        }
+        const ownerMembers = sharedSessions.get(userId);
+        if (ownerMembers) {
+          for (const memberId of ownerMembers.keys()) {
+            sendToUser(memberId, { type: "shared-session-ended", ownerUserId: userId });
+            for (const target of collaborationClients.values()) {
+              if (target.userId === memberId) {
+                target.joinedOwnerUserId = undefined;
+                target.permission = undefined;
+                const targetSession = getSession(target.request);
+                delete targetSession.collaborationOwnerUserId;
+                delete targetSession.collaborationPermission;
+                void saveSession(target.request);
+              }
             }
           }
+          sharedSessions.delete(userId);
         }
-        sharedSessions.delete(userId);
+        for (const key of pendingJoinRequests.keys()) {
+          if (key.startsWith(`${userId}:`) || key.endsWith(`:${userId}`)) pendingJoinRequests.delete(key);
+        }
       }
-      for (const key of pendingJoinRequests.keys()) {
-        if (key.startsWith(`${userId}:`) || key.endsWith(`:${userId}`)) pendingJoinRequests.delete(key);
-      }
-      collaborationClients.delete(clientKey);
       broadcastPresence();
       // Keep the device active during transient reconnects; mark it inactive only
       // after the shared per-device inactivity timer expires.
