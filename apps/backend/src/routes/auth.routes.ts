@@ -96,8 +96,31 @@ type CollaborationClient = {
   userId: string;
   displayName: string;
   role: string;
+  joinedOwnerUserId?: string;
+  permission?: "view" | "editor";
 };
 const collaborationClients = new Map<string, CollaborationClient>();
+const sharedSessions = new Map<string, Map<string, "view" | "editor">>();
+const pendingJoinRequests = new Map<string, string>();
+function sendToUser(userId: string, payload: unknown): void {
+  const message = JSON.stringify(payload);
+  for (const client of collaborationClients.values()) {
+    if (client.userId === userId && client.socket.readyState === 1) client.socket.send(message);
+  }
+}
+function sendToSharedSession(ownerUserId: string, payload: unknown, exceptUserId?: string): void {
+  const allowed = new Set([ownerUserId, ...((sharedSessions.get(ownerUserId) ?? new Map()).keys())]);
+  const message = JSON.stringify(payload);
+  for (const client of collaborationClients.values()) {
+    if (allowed.has(client.userId) && client.userId !== exceptUserId && client.socket.readyState === 1) {
+      client.socket.send(message);
+    }
+  }
+}
+function sharedOwnerFor(client: CollaborationClient): string | undefined {
+  if (sharedSessions.has(client.userId)) return client.userId;
+  return client.joinedOwnerUserId;
+}
 function broadcastPresence(): void {
   const users = [...collaborationClients.values()].map(({ userId, displayName, role }) => ({
     userId, displayName, role,
@@ -519,6 +542,19 @@ export default async function authRoutes(app: FastifyInstance) {
     },
   );
 
+  app.get("/auth/collaboration/users", async (request, reply) => {
+    const currentUserId = getSession(request).userId;
+    if (!currentUserId) return reply.code(401).send({ message: "Not authenticated." });
+    const users = await readUsers();
+    const onlineIds = new Set([...collaborationClients.values()].map((client) => client.userId));
+    return {
+      users: users.filter((user) => user.id !== "guest-intern" && user.id !== currentUserId).map((user) => ({
+        ...publicUser(user),
+        online: onlineIds.has(user.id),
+      })),
+    };
+  });
+
   // WebSocket /api/auth/socket: one authenticated channel for device activity.
   app.get("/auth/socket", { websocket: true }, (socket, request) => {
     const userId = getSession(request).userId;
@@ -639,6 +675,120 @@ export default async function authRoutes(app: FastifyInstance) {
       }
       if (deviceId === "pending-device") return;
 
+      if (message.type === "join-request") {
+        if (typeof message.targetUserId !== "string" || message.targetUserId === userId) return;
+        const ownerOnline = [...collaborationClients.values()].some((target) => target.userId === message.targetUserId && target.socket.readyState === 1);
+        if (!ownerOnline) {
+          socket.send(JSON.stringify({ type: "join-request-result", targetUserId: message.targetUserId, status: "offline" }));
+          return;
+        }
+        pendingJoinRequests.set(`${message.targetUserId}:${userId}`, clientKey);
+        sendToUser(message.targetUserId, {
+          type: "join-request",
+          fromUserId: userId,
+          fromDisplayName: client.displayName,
+          requestedAt: Date.now(),
+        });
+        socket.send(JSON.stringify({ type: "join-request-result", targetUserId: message.targetUserId, status: "pending" }));
+        return;
+      }
+
+      if (message.type === "join-response") {
+        if (typeof message.targetUserId !== "string" || typeof message.approved !== "boolean") return;
+        const requestKey = `${userId}:${message.targetUserId}`;
+        if (!pendingJoinRequests.has(requestKey)) return;
+        pendingJoinRequests.delete(requestKey);
+        const permission = message.permission === "editor" ? "editor" : "view";
+        if (!message.approved) {
+          sendToUser(message.targetUserId, { type: "join-declined", ownerUserId: userId, ownerDisplayName: client.displayName });
+          return;
+        }
+        const members = sharedSessions.get(userId) ?? new Map<string, "view" | "editor">();
+        members.set(message.targetUserId, permission);
+        sharedSessions.set(userId, members);
+        for (const target of collaborationClients.values()) {
+          if (target.userId === message.targetUserId) {
+            target.joinedOwnerUserId = userId;
+            target.permission = permission;
+          }
+        }
+        void readWorkspaces().then((workspaces) => {
+          sendToUser(message.targetUserId as string, {
+            type: "join-approved",
+            ownerUserId: userId,
+            ownerDisplayName: client.displayName,
+            permission,
+            workspace: workspaces[userId] ?? { openApps: [] },
+          });
+          sendToUser(userId, {
+            type: "shared-members",
+            ownerUserId: userId,
+            members: [...members.entries()].map(([memberUserId, memberPermission]) => ({
+              userId: memberUserId,
+              permission: memberPermission,
+              displayName: [...collaborationClients.values()].find((entry) => entry.userId === memberUserId)?.displayName ?? memberUserId,
+            })),
+          });
+        });
+        return;
+      }
+
+      if (message.type === "join-leave") {
+        const ownerUserId = client.joinedOwnerUserId;
+        if (!ownerUserId) return;
+        sharedSessions.get(ownerUserId)?.delete(userId);
+        for (const target of collaborationClients.values()) {
+          if (target.userId === userId) {
+            target.joinedOwnerUserId = undefined;
+            target.permission = undefined;
+          }
+        }
+        sendToUser(ownerUserId, { type: "shared-member-left", userId, displayName: client.displayName });
+        socket.send(JSON.stringify({ type: "join-left" }));
+        return;
+      }
+
+      if (message.type === "shared-permission" && client.role === "admin") {
+        if (typeof message.targetUserId !== "string" || (message.permission !== "view" && message.permission !== "editor")) return;
+        const members = sharedSessions.get(userId);
+        if (!members?.has(message.targetUserId)) return;
+        members.set(message.targetUserId, message.permission);
+        for (const target of collaborationClients.values()) {
+          if (target.userId === message.targetUserId && target.joinedOwnerUserId === userId) target.permission = message.permission;
+        }
+        sendToUser(message.targetUserId, { type: "shared-permission", ownerUserId: userId, permission: message.permission });
+        return;
+      }
+
+      if (message.type === "shared-workspace-command") {
+        const ownerUserId = client.joinedOwnerUserId;
+        if (!ownerUserId || client.permission !== "editor") return;
+        sendToUser(ownerUserId, {
+          type: "shared-workspace-command",
+          fromUserId: userId,
+          fromDisplayName: client.displayName,
+          command: message.command,
+          payload: message.payload,
+          permission: client.permission,
+        });
+        return;
+      }
+
+      if (message.type === "annotation-state") {
+        const ownerUserId = client.joinedOwnerUserId ?? userId;
+        if (client.joinedOwnerUserId && client.permission !== "editor") return;
+        const payload = {
+          type: "annotation-state",
+          ownerUserId,
+          fromUserId: userId,
+          fromDisplayName: client.displayName,
+          payload: message.payload,
+          timestamp: Date.now(),
+        };
+        sendToSharedSession(ownerUserId, payload, userId);
+        return;
+      }
+
       if (message.type === "chat") {
         if (typeof message.text !== "string" || !message.text.trim()) return;
         const text = message.text.trim().slice(0, 2000);
@@ -656,14 +806,16 @@ export default async function authRoutes(app: FastifyInstance) {
 
       if (message.type === "cursor") {
         if (typeof message.x !== "number" || typeof message.y !== "number") return;
-        broadcastCollaboration(JSON.stringify({
+        const ownerUserId = sharedOwnerFor(client);
+        if (!ownerUserId) return;
+        sendToSharedSession(ownerUserId, {
           type: "cursor",
           userId,
           displayName: client.displayName,
           x: Math.max(0, Math.min(1, message.x)),
           y: Math.max(0, Math.min(1, message.y)),
           timestamp: Date.now(),
-        }), clientKey);
+        }, userId);
         return;
       }
 
@@ -704,6 +856,19 @@ export default async function authRoutes(app: FastifyInstance) {
         message.workspace !== null &&
         !Array.isArray(message.workspace)
       ) {
+        if (client.joinedOwnerUserId) {
+          if (client.permission === "editor") {
+            sendToUser(client.joinedOwnerUserId, {
+              type: "shared-workspace-command",
+              fromUserId: userId,
+              fromDisplayName: client.displayName,
+              command: "workspace",
+              payload: message.workspace,
+              permission: client.permission,
+            });
+          }
+          return;
+        }
         const persistWorkspace = workspaceUpdateQueue.then(async () => {
           try {
             const sessions = await readSessions();
@@ -721,6 +886,15 @@ export default async function authRoutes(app: FastifyInstance) {
               `${JSON.stringify({ workspaces }, null, 2)}\n`,
               "utf8",
             );
+            const members = sharedSessions.get(userId);
+            if (members?.size) {
+              sendToSharedSession(userId, {
+                type: "shared-workspace",
+                ownerUserId: userId,
+                ownerDisplayName: client.displayName,
+                workspace: message.workspace,
+              }, userId);
+            }
           } catch (error) {
             request.log.error(error, "Unable to persist workspace state over WebSocket");
           }
@@ -736,6 +910,26 @@ export default async function authRoutes(app: FastifyInstance) {
     });
 
     socket.on("close", () => {
+      if (client.joinedOwnerUserId) {
+        sharedSessions.get(client.joinedOwnerUserId)?.delete(userId);
+        sendToUser(client.joinedOwnerUserId, { type: "shared-member-left", userId, displayName: client.displayName });
+      }
+      const ownerMembers = sharedSessions.get(userId);
+      if (ownerMembers) {
+        for (const memberId of ownerMembers.keys()) {
+          sendToUser(memberId, { type: "shared-session-ended", ownerUserId: userId });
+          for (const target of collaborationClients.values()) {
+            if (target.userId === memberId) {
+              target.joinedOwnerUserId = undefined;
+              target.permission = undefined;
+            }
+          }
+        }
+        sharedSessions.delete(userId);
+      }
+      for (const key of pendingJoinRequests.keys()) {
+        if (key.startsWith(`${userId}:`) || key.endsWith(`:${userId}`)) pendingJoinRequests.delete(key);
+      }
       collaborationClients.delete(clientKey);
       broadcastPresence();
       // Keep the device active during transient reconnects; mark it inactive only
