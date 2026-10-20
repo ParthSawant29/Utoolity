@@ -263,19 +263,23 @@ export default function FileManager({ onOpenFile }: Props) {
       {error && <div role="alert" className="mx-5 mt-4 flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"><span className="min-w-0 flex-1">{error}</span><button type="button" aria-label="Dismiss error" onClick={() => setError(null)}><X className="size-4" /></button></div>}
 
       {storageUsage && (
-        <div className="shrink-0 border-b border-border px-5 py-3">
-          <div className="mb-2 flex items-center justify-between gap-3 text-xs">
-            <span className="font-semibold text-foreground">Server storage</span>
-            <span className="text-muted-foreground">
-              {(storageUsage.availableBytes / 1024 ** 3).toFixed(1)} GB free of {(storageUsage.totalBytes / 1024 ** 3).toFixed(1)} GB
-            </span>
-          </div>
-          <div role="progressbar" aria-label="Server storage used" aria-valuemin={0} aria-valuemax={100}
+        <div className="pointer-events-none absolute inset-x-5 bottom-[4.15rem] z-20" title={`${(storageUsage.availableBytes / 1024 ** 3).toFixed(1)} GB free of ${(storageUsage.totalBytes / 1024 ** 3).toFixed(1)} GB`}>
+          <div
+            role="progressbar"
+            aria-label="Server storage used"
+            aria-valuemin={0}
+            aria-valuemax={100}
             aria-valuenow={storageUsage.totalBytes > 0 ? Math.min(100, Math.round(storageUsage.usedBytes / storageUsage.totalBytes * 100)) : 0}
-            className="h-2 overflow-hidden rounded-full bg-muted">
-            <div className="h-full rounded-full bg-primary transition-[width]"
-              style={{ width: (storageUsage.totalBytes > 0 ? Math.min(100, storageUsage.usedBytes / storageUsage.totalBytes * 100) : 0) + "%" }} />
+            className="storage-capacity-track"
+          >
+            <div
+              className="storage-capacity-fill"
+              style={{ width: (storageUsage.totalBytes > 0 ? Math.min(100, storageUsage.usedBytes / storageUsage.totalBytes * 100) : 0) + "%" }}
+            />
           </div>
+          <span className="sr-only">
+            Server storage: {(storageUsage.availableBytes / 1024 ** 3).toFixed(1)} GB free of {(storageUsage.totalBytes / 1024 ** 3).toFixed(1)} GB
+          </span>
         </div>
       )}
 
@@ -371,6 +375,47 @@ export default function FileManager({ onOpenFile }: Props) {
           </section>
         </div>
       )}
-    </main>
+  
+      .storage-capacity-track {
+        position: relative;
+        height: 2px;
+        width: 100%;
+        overflow: visible;
+        border-radius: 9999px;
+        background: hsl(var(--border) / 0.55);
+        box-shadow: 0 0 4px hsl(var(--primary) / 0.12);
+      }
+      .storage-capacity-fill {
+        position: relative;
+        height: 100%;
+        min-width: 2px;
+        border-radius: inherit;
+        background: hsl(var(--primary));
+        box-shadow: 0 0 5px hsl(var(--primary) / 0.7);
+        transition: width 450ms ease;
+      }
+      .storage-capacity-fill::after {
+        content: "";
+        position: absolute;
+        right: -2px;
+        top: 50%;
+        width: 5px;
+        height: 5px;
+        border-radius: 50%;
+        transform: translateY(-50%);
+        background: hsl(var(--primary));
+        box-shadow: 0 0 4px 1px hsl(var(--primary) / 0.85);
+        animation: storage-endpoint-pulse 1.8s ease-in-out infinite;
+      }
+      @keyframes storage-endpoint-pulse {
+        0%, 100% { opacity: 0.65; box-shadow: 0 0 3px 1px hsl(var(--primary) / 0.55); }
+        50% { opacity: 1; box-shadow: 0 0 8px 3px hsl(var(--primary) / 0.85); }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .storage-capacity-fill::after { animation: none; }
+        .storage-capacity-fill { transition: none; }
+      }
+
+  </main>
   );
 }
