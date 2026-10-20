@@ -756,37 +756,43 @@ export default async function authRoutes(app: FastifyInstance) {
           sendToUser(message.targetUserId, { type: "join-declined", ownerUserId: userId, ownerDisplayName: client.displayName });
           return;
         }
+        const requesterKey = pendingJoinRequests.get(requestKey);
+        const requester = requesterKey ? collaborationClients.get(requesterKey) : undefined;
+        if (!requester || requester.socket.readyState !== 1) {
+          pendingJoinRequests.delete(requestKey);
+          return;
+        }
+        if (client.joinedOwnerUserId || sharedSessions.has(message.targetUserId)) return;
         const members = sharedSessions.get(userId) ?? new Map<string, "view" | "editor">();
         members.set(message.targetUserId, permission);
         sharedSessions.set(userId, members);
-        for (const target of collaborationClients.values()) {
-          if (target.userId === message.targetUserId) {
-            target.joinedOwnerUserId = userId;
-            target.permission = permission;
-            const targetSession = getSession(target.request);
-            targetSession.collaborationOwnerUserId = userId;
-            targetSession.collaborationPermission = permission;
-            void saveSession(target.request);
-          }
-        }
-        void readWorkspaces().then((workspaces) => {
-          sendToUser(message.targetUserId as string, {
-            type: "join-approved",
-            ownerUserId: userId,
-            ownerDisplayName: client.displayName,
-            permission,
-            workspace: liveWorkspaces.get(userId) ?? workspaces[userId] ?? { openApps: [] },
-          });
-          sendToUser(userId, {
-            type: "shared-members",
-            ownerUserId: userId,
-            members: [...members.entries()].map(([memberUserId, memberPermission]) => ({
-              userId: memberUserId,
-              permission: memberPermission,
-              displayName: [...collaborationClients.values()].find((entry) => entry.userId === memberUserId)?.displayName ?? memberUserId,
-            })),
-          });
+        requester.joinedOwnerUserId = userId;
+        requester.permission = permission;
+        const requesterSession = getSession(requester.request);
+        requesterSession.collaborationOwnerUserId = userId;
+        requesterSession.collaborationPermission = permission;
+        void saveSession(requester.request);
+        const users = await readUsers();
+        const workspaces = await readWorkspaces();
+        const workspace = liveWorkspaces.get(userId) ?? workspaces[userId] ?? { openApps: [] };
+        sendToUser(message.targetUserId, {
+          type: "join-approved",
+          ownerUserId: userId,
+          ownerDisplayName: client.displayName,
+          permission,
+          workspace,
         });
+        const memberPayload = {
+          type: "shared-members",
+          ownerUserId: userId,
+          members: [...members.entries()].map(([memberUserId, memberPermission]) => ({
+            userId: memberUserId,
+            permission: memberPermission,
+            displayName: findById(users, memberUserId)?.displayName ?? memberUserId,
+          })),
+        };
+        sendToUser(userId, memberPayload);
+        sendToUser(message.targetUserId, { type: "shared-session-owner", ownerUserId: userId, ownerDisplayName: client.displayName });
         return;
       }
 
