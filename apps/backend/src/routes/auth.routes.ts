@@ -751,9 +751,9 @@ export default async function authRoutes(app: FastifyInstance) {
         const requestKey = `${userId}:${message.targetUserId}`;
         const requesterKey = pendingJoinRequests.get(requestKey);
         if (!requesterKey) return;
-        pendingJoinRequests.delete(requestKey);
         const permission = message.permission === "editor" ? "editor" : "view";
         if (!message.approved) {
+          pendingJoinRequests.delete(requestKey);
           sendToUser(message.targetUserId, { type: "join-declined", ownerUserId: userId, ownerDisplayName: client.displayName });
           return;
         }
@@ -762,7 +762,11 @@ export default async function authRoutes(app: FastifyInstance) {
           pendingJoinRequests.delete(requestKey);
           return;
         }
-        if (client.joinedOwnerUserId || sharedSessions.has(message.targetUserId)) return;
+        if (client.joinedOwnerUserId || sharedSessions.has(message.targetUserId)) {
+          pendingJoinRequests.delete(requestKey);
+          return;
+        }
+        pendingJoinRequests.delete(requestKey);
         const members = sharedSessions.get(userId) ?? new Map<string, "view" | "editor">();
         members.set(message.targetUserId, permission);
         sharedSessions.set(userId, members);
