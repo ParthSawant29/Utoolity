@@ -749,15 +749,15 @@ export default async function authRoutes(app: FastifyInstance) {
       if (message.type === "join-response") {
         if (typeof message.targetUserId !== "string" || typeof message.approved !== "boolean") return;
         const requestKey = `${userId}:${message.targetUserId}`;
-        if (!pendingJoinRequests.has(requestKey)) return;
+        const requesterKey = pendingJoinRequests.get(requestKey);
+        if (!requesterKey) return;
         pendingJoinRequests.delete(requestKey);
         const permission = message.permission === "editor" ? "editor" : "view";
         if (!message.approved) {
           sendToUser(message.targetUserId, { type: "join-declined", ownerUserId: userId, ownerDisplayName: client.displayName });
           return;
         }
-        const requesterKey = pendingJoinRequests.get(requestKey);
-        const requester = requesterKey ? collaborationClients.get(requesterKey) : undefined;
+        const requester = collaborationClients.get(requesterKey);
         if (!requester || requester.socket.readyState !== 1) {
           pendingJoinRequests.delete(requestKey);
           return;
