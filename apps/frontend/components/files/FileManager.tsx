@@ -225,7 +225,7 @@ export default function FileManager({ onOpenFile }: Props) {
   const breadcrumbs = path.split("/").filter(Boolean);
 
   return (
-    <main className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
+    <main className="relative flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
       <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border px-5 py-4">
         <div className="flex min-w-0 flex-1 items-center gap-2">
           <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Folder className="size-5" /></span>
@@ -258,7 +258,7 @@ export default function FileManager({ onOpenFile }: Props) {
 
       {error && <div role="alert" className="mx-5 mt-4 flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"><span className="min-w-0 flex-1">{error}</span><button type="button" aria-label="Dismiss error" onClick={() => setError(null)}><X className="size-4" /></button></div>}
 
-      <section className="relative min-h-0 flex-1 overflow-y-auto p-5">
+      <section className="min-h-0 flex-1 overflow-y-auto p-5">
         {loading ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {Array.from({ length: 8 }, (_, index) => <div key={index} className="h-36 animate-pulse rounded-2xl border border-border bg-muted/40" />)}
