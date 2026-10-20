@@ -759,20 +759,18 @@ export default async function authRoutes(app: FastifyInstance) {
 
     try {
       const users = await readUsers();
-      let user = hostname ? findByHostname(users, hostname) : undefined;
-
-      if (!user) {
-        const deviceId = getDeviceId(request, "");
-        if (deviceId) {
-          const sessions = await readSessions();
-          const deviceSession = Object.values(sessions).find(
-            (session) => session.deviceId === deviceId,
-          );
-          if (deviceSession) {
-            user = findById(users, deviceSession.userId);
-          }
-        }
+      // Resolve the device assignment first. A saved hostname is a legacy
+      // profile hint only and must not override the current device mapping.
+      let user: InternUser | undefined;
+      const deviceId = getDeviceId(request, "");
+      if (deviceId) {
+        const sessions = await readSessions();
+        const deviceSession = Object.values(sessions).find(
+          (session) => session.deviceId === deviceId,
+        );
+        if (deviceSession) user = findById(users, deviceSession.userId);
       }
+      if (!user && hostname) user = findByHostname(users, hostname);
 
       if (!user && hostname) {
         return reply.code(404).send({
