@@ -322,7 +322,7 @@ function Lockcard({
       >
         <Maximize className="size-4" />
       </button>
-      <div className="lockscreen-frost-panel relative z-10 flex w-full max-w-3xl flex-col items-center px-5 py-12 text-center">
+      <div className="lockscreen-frost-panel relative z-10 flex w-full max-w-3xl flex-col items-center rounded-3xl border border-white/20 bg-black/20 px-5 py-12 text-center shadow-2xl backdrop-blur-2xl transition-all duration-300">
         <p className="text-xl font-bold tracking-[0.24em] text-background/80">
           {getGreeting(now)}
         </p>
