@@ -304,7 +304,7 @@ function Lockcard({
     <section
       ref={cardRef}
       _aria-label_="Lock screen"
-      className={`lockscreen-shell relative z-10 isolate flex h-full min-h-dvh w-full flex-col items-center justify-center overflow-hidden rounded-xl text-foreground ${
+      className={`lockscreen-shell fixed inset-0 z-50 isolate flex h-dvh min-h-dvh w-full flex-col items-center justify-center overflow-hidden rounded-none text-foreground ${
         leaving ? "lockscreen-exit" : "lockscreen-enter"
       }`}
     >
@@ -318,8 +318,8 @@ function Lockcard({
       >
         <Maximize className="size-4" />
       </button>
-      <div className="lockscreen-frost-panel relative z-10 flex w-full max-w-3xl flex-col items-center rounded-3xl border border-white/20 bg-black/20 px-5 py-12 text-center shadow-2xl backdrop-blur-2xl transition-all duration-300">
-        <p className="text-xl font-bold tracking-[0.24em] text-background/80">
+      <div className="lockscreen-frost-panel relative z-10 flex w-full flex-col items-center px-5 py-8 text-center transition-all duration-300">
+        <p className="text-xl font-bold tracking-[0.24em] text-white/80">
           {getGreeting(now)}
         </p>
         <time
@@ -332,7 +332,7 @@ function Lockcard({
             hour12: true,
           })}
         </time>
-        <p className="mt-5 text-base font-semibold text-background/80 sm:text-xl">
+        <p className="mt-5 text-base font-semibold text-white/80 sm:text-xl">
           {now.toLocaleDateString(undefined, {
             weekday: "long",
             month: "long",
@@ -340,14 +340,14 @@ function Lockcard({
           })}
         </p>
         <div className="mt-12 flex w-full flex-col items-center">
-          <div className="mb-4 flex size-20 items-center justify-center rounded-full border border-border/70 bg-card/60 shadow-[00_0_8pxcolor-mix(in_oklab,var(--border)_20%,transparent)]">
+          <div className="mb-4 flex size-20 items-center justify-center rounded-full border border-white/25 bg-black/15 shadow-lg backdrop-blur-sm">
             <LockKeyhole
-              className={`size-8 text-background/85 transition-opacity duration-500 ${
+              className={`size-8 text-white/90 transition-opacity duration-500 ${
                 lockscreenState === "locked" ? "opacity-100" : "opacity-35"
               }`}
             />
           </div>
-          <h1 className="max-w-full wrap-break-word text-xl font-bold text-background">
+          <h1 className="max-w-full wrap-break-word text-xl font-bold text-white">
             {loadingProfile
               ? "Loading profile..."
               : profile?.displayName ?? "Assigned workstation"}
@@ -357,7 +357,7 @@ function Lockcard({
               onSubmit={handleUnlock}
               className="mt-8 flex w-full max-w-sm flex-col items-center"
             >
-              <p className="mb-4 text-sm font-medium tracking-wide text-background/80">
+              <p className="mb-4 text-sm font-medium tracking-wide text-white/80">
                 Sign in to unlock
               </p>
               <input
@@ -368,7 +368,7 @@ function Lockcard({
                 placeholder="••••••••"
                 autoComplete="current-password"
                 disabled={loadingProfile || checking}
-                className="w-full rounded-2xl border border-border/70 bg-input/70 px-5 py-4 text-center font-mono text-3xl tracking-[0.45em] text-foreground outline-none backdrop-blur-xl placeholder:text-muted-foreground focus:border-ring focus:ring-2 focus:ring-ring/35 disabled:opacity-50"
+                className="w-full rounded-2xl border border-white/20 bg-black/25 px-5 py-4 text-center font-mono text-3xl tracking-[0.45em] text-white outline-none backdrop-blur-sm placeholder:text-white/45 focus:border-white/50 focus:ring-2 focus:ring-white/20 disabled:opacity-50"
               />
               <button
                 type="submit"
