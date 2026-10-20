@@ -32,6 +32,7 @@ apps/frontend/dist
 apps/backend/dist
 apps/backend/build
 apps/backend/data/
+apps/backend/src/data/
 apps/frontend/public/wallpaper/Live
 # Debug
 npm-debug.log*
