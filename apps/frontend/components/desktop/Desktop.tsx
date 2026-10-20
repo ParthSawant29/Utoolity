@@ -8,7 +8,7 @@ import SystemTray from "./SystemTray";
 import { api } from "../../lib/api";
 import DesktopContextMenu, { type MenuAction } from "./DesktopContextMenu";
 import DesktopApps from "./DesktopApps";
-import { DEFAULT_WALLPAPER_ID, WALLPAPERS, normalizeWallpaperId, readWallpaperPreference, saveWallpaperPreference } from "../../lib/wallpapers";
+import { WALLPAPERS, normalizeWallpaperId, readWallpaperPreference, saveWallpaperPreference } from "../../lib/wallpapers";
 import ToolContent, { appTitles, type DesktopAppId } from "./ToolContent";
 import type { WindowSummary } from "./SystemTray/AllWindows";
 
