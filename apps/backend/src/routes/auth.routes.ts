@@ -795,13 +795,13 @@ export default async function authRoutes(app: FastifyInstance) {
         const users = await readUsers();
         const workspaces = await readWorkspaces();
         const workspace = liveWorkspaces.get(userId) ?? workspaces[userId] ?? { openApps: [] };
-        sendToUser(message.targetUserId, {
+        requester.socket.send(JSON.stringify({
           type: "join-approved",
           ownerUserId: userId,
           ownerDisplayName: client.displayName,
           permission,
           workspace,
-        });
+        }));
         const memberPayload = {
           type: "shared-members",
           ownerUserId: userId,
