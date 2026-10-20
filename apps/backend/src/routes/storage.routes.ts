@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { createReadStream } from "node:fs";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { cp, mkdir, readdir, rename, rm, stat, writeFile, readFile } from "node:fs/promises";
+import { cp, mkdir, readdir, rename, rm, stat, statfs, writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
 
 type SessionRequest = FastifyRequest & {
@@ -57,6 +57,28 @@ async function getUser(request: FastifyRequest): Promise<UserRecord> {
 }
 
 export default async function storageRoutes(app: FastifyInstance) {
+
+  app.get("/storage/usage", async (request, reply) => {
+    try {
+      const user = await getUser(request);
+      const root = userRoot(user);
+      await mkdir(root, { recursive: true });
+      const usage = await statfs(root);
+      const totalBytes = Number(usage.blocks) * Number(usage.bsize);
+      const availableBytes = Number(usage.bavail) * Number(usage.bsize);
+      return {
+        totalBytes,
+        availableBytes,
+        usedBytes: Math.max(0, totalBytes - availableBytes),
+      };
+    } catch (error) {
+      request.log.error(error, "Storage usage lookup failed");
+      return reply.code(storageErrorStatus(error)).send({
+        message: error instanceof Error ? error.message : "Unable to load storage usage.",
+      });
+    }
+  });
+
   app.get<{ Querystring: { path?: string } }>("/storage/list", async (request, reply) => {
     try {
       const user = await getUser(request);
