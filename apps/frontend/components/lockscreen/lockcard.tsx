@@ -304,7 +304,7 @@ function Lockcard({
     <section
       ref={cardRef}
       _aria-label_="Lock screen"
-      className={`lockscreen-shell relative isolate flex h-full min-h-dvh w-full flex-col items-center justify-center overflow-hidden rounded-xl text-foreground ${
+      className={`lockscreen-shell relative z-10 isolate flex h-full min-h-dvh w-full flex-col items-center justify-center overflow-hidden rounded-xl text-foreground ${
         leaving ? "lockscreen-exit" : "lockscreen-enter"
       }`}
     >
