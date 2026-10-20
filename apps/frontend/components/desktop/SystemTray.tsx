@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { Users } from "lucide-react";
 import AllWindows from "./SystemTray/AllWindows";
 import type { WindowSummary } from "./SystemTray/AllWindows";
 import Search, { type SearchItem } from "./SystemTray/Search";
@@ -47,6 +48,16 @@ export default function SystemTray({
         onFocus={onFocusWindow}
         onClose={onCloseWindow}
       />
+
+      <button
+        type="button"
+        onClick={() => window.dispatchEvent(new CustomEvent("utoolity:open-collaboration"))}
+        aria-label="Join collaboration session"
+        title="Join collaboration session"
+        className="relative flex size-10 shrink-0 items-center justify-center rounded-full border border-border/70 bg-background/75 text-foreground shadow-sm backdrop-blur-xl transition-colors hover:bg-accent hover:text-accent-foreground active:scale-95"
+      >
+        <Users size={18} strokeWidth={1.9} />
+      </button>
 
       <Search
         items={searchItems}
