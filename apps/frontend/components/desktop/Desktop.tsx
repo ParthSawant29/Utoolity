@@ -123,8 +123,6 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
   useEffect(() => {
     let cancelled = false;
     setIsDark(document.documentElement.classList.contains("dark"));
-    // Home verifies the session before mounting the desktop. Reuse its cached
-    // identity rather than issuing another /api/auth/me request here.
     const userId = localStorage.getItem("utoolity.authenticated-user-id");
     if (!userId) {
       setWorkspaceHydrated(true);
@@ -144,11 +142,17 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
     } catch {
       localStorage.removeItem(storageKey);
     }
-    void api<{ workspace: { openApps?: typeof openApps } }>("/api/auth/workspace")
+    void api<{ workspace: { openApps?: typeof openApps; activeAppKey?: string | null; context?: Record<string, unknown> } }>("/api/auth/workspace")
       .then((result) => {
-        if (!cancelled && result && Array.isArray(result.workspace.openApps)) {
+        if (cancelled || !result) return;
+        if (Array.isArray(result.workspace.openApps)) {
           setOpenApps(result.workspace.openApps);
-          setActiveAppKey(result.workspace.openApps.at(-1) ? `${result.workspace.openApps.at(-1)?.app}:${result.workspace.openApps.at(-1)?.filePath ?? ""}` : null);
+          setActiveAppKey(typeof result.workspace.activeAppKey === "string" ? result.workspace.activeAppKey : result.workspace.openApps.at(-1) ? `${result.workspace.openApps.at(-1)?.app}:${result.workspace.openApps.at(-1)?.filePath ?? ""}` : null);
+        }
+        const folder = result.workspace.context?.boundingBoxFolder;
+        if (typeof folder === "string" && folder) {
+          localStorage.setItem("utoolity.bounding-box.folder", folder);
+          localStorage.setItem("utoolity.polygon.folder", folder);
         }
       })
       .catch(() => undefined)
@@ -160,7 +164,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
 
   useEffect(() => {
     const applySharedSession = (event: Event) => {
-      const detail = (event as CustomEvent<{ ownerUserId?: string; permission?: "view" | "editor"; workspace?: { openApps?: typeof openApps } }>).detail;
+      const detail = (event as CustomEvent<{ ownerUserId?: string; permission?: "view" | "editor"; workspace?: { openApps?: typeof openApps; activeAppKey?: string | null; context?: Record<string, unknown> } }>).detail;
       if (!detail?.ownerUserId) return;
       setSharedOwnerUserId(detail.ownerUserId);
       setSharedPermission(detail.permission === "editor" ? "editor" : "view");
@@ -173,7 +177,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
       if (Array.isArray(detail.workspace?.openApps)) {
         const next = detail.workspace.openApps.filter((item) => item && typeof item.app === "string") as typeof openApps;
         setOpenApps(next);
-        setActiveAppKey(next.at(-1) ? `${next.at(-1)?.app}:${next.at(-1)?.filePath ?? ""}` : null);
+        setActiveAppKey(typeof detail.workspace.activeAppKey === "string" ? detail.workspace.activeAppKey : next.at(-1) ? `${next.at(-1)?.app}:${next.at(-1)?.filePath ?? ""}` : null);
       }
       setWorkspaceHydrated(true);
     };
@@ -189,7 +193,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
       if (Array.isArray(detail.workspace.openApps)) {
         const next = detail.workspace.openApps.filter((item) => item && typeof item.app === "string") as typeof openApps;
         setOpenApps(next);
-        setActiveAppKey(next.at(-1) ? `${next.at(-1)?.app}:${next.at(-1)?.filePath ?? ""}` : null);
+        setActiveAppKey(typeof detail.workspace.activeAppKey === "string" ? detail.workspace.activeAppKey : next.at(-1) ? `${next.at(-1)?.app}:${next.at(-1)?.filePath ?? ""}` : null);
       }
     };
     const applyPermission = (event: Event) => {
@@ -226,8 +230,13 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
         }
       }
       if (detail.command === "workspace" && detail.payload && typeof detail.payload === "object") {
-        const workspace = detail.payload as { openApps?: typeof openApps };
+        const workspace = detail.payload as { openApps?: typeof openApps; activeAppKey?: string | null; context?: Record<string, unknown> };
         if (Array.isArray(workspace.openApps)) setOpenApps(workspace.openApps);
+        if (typeof workspace.activeAppKey === "string") setActiveAppKey(workspace.activeAppKey);
+        if (typeof workspace.context?.boundingBoxFolder === "string" && workspace.context.boundingBoxFolder) {
+          localStorage.setItem("utoolity.bounding-box.folder", workspace.context.boundingBoxFolder);
+          localStorage.setItem("utoolity.polygon.folder", workspace.context.boundingBoxFolder);
+        }
       }
     };
     window.addEventListener("utoolity:shared-session-changed", applySharedSession);
@@ -266,6 +275,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
     const timer = window.setTimeout(() => {
       const workspace = {
         openApps,
+        activeAppKey,
         context: {
           boundingBoxFolder: localStorage.getItem("utoolity.bounding-box.folder"),
         },
@@ -278,7 +288,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
       }));
     }, 350);
     return () => window.clearTimeout(timer);
-  }, [openApps, workspaceHydrated, workspaceUserId, isSharedViewer]);
+  }, [openApps, activeAppKey, workspaceHydrated, workspaceUserId, isSharedViewer]);
 
   const openMenu = (event: MouseEvent<HTMLElement>) => {
     event.preventDefault();
