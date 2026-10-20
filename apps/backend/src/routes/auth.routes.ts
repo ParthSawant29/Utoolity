@@ -772,11 +772,18 @@ export default async function authRoutes(app: FastifyInstance) {
       }
       if (!user && hostname) user = findByHostname(users, hostname);
 
-      if (!user && hostname) {
-        return reply.code(404).send({
-          message: "No account is assigned to this hostname.",
-        });
+      // If a configured browser/device ID is the MAC ID stored in users.json,
+      // resolve that assignment too. Browsers cannot discover a physical MAC on
+      // their own; installations may explicitly provision this value.
+      if (!user && deviceId) {
+        user = users.find((candidate) =>
+          candidate.macId.toLowerCase() === deviceId.toLowerCase()
+        );
       }
+      if (!user && deviceId) {
+        user = users.find((candidate) => candidate.macId.toLowerCase() === deviceId.toLowerCase());
+      }
+      if (!user && hostname) user = findByHostname(users, hostname);
 
       // Unassigned devices are valid guest workstations, not profile-load failures.
       // The device ID is only used to resolve a prior assignment; it is not an identity
