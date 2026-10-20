@@ -1,0 +1,26 @@
+{
+  "sessions": {
+    "L-MHP-IXMT2:L-MHP-IXMT2": {
+      "userId": "L-MHP-IXMT2",
+      "hostname": "L-MHP-IXMT2",
+      "displayName": "Harshal Chaudhari",
+      "deviceId": "L-MHP-IXMT2",
+      "role": "intern",
+      "active": true,
+      "activeApps": [],
+      "lastActivityAt": 1792529883699,
+      "updatedAt": 1792529883700
+    },
+    "Wraith OS:wraith-os": {
+      "userId": "Wraith OS",
+      "hostname": "wraith-os",
+      "displayName": "Harshal Chaudhari",
+      "deviceId": "wraith-os",
+      "role": "intern",
+      "active": true,
+      "activeApps": [],
+      "lastActivityAt": 1792527758236,
+      "updatedAt": 1792527758236
+    }
+  }
+}

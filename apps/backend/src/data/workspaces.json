@@ -1,7 +1,12 @@
 {
   "workspaces": {
     "L-MHP-IXMT2": {
-      "openApps": []
+      "openApps": [],
+      "activeAppKey": null,
+      "context": {
+        "boundingBoxFolder": null,
+        "polygonFolder": null
+      }
     },
     "Wraith OS": {
       "openApps": [

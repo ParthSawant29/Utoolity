@@ -9,7 +9,8 @@
       "role": "intern",
       "preferences": {
         "utoolity.wallpaper": "new.jpg",
-        "utoolity.icon-size": "large"
+        "utoolity.icon-size": "large",
+        "utoolity.theme": "dark"
       }
     },
     {
@@ -22,7 +23,7 @@
       "preferences": {
         "utoolity.wallpaper": "default.jpg",
         "utoolity.icon-size": "large",
-        "utoolity.theme": "dark",
+        "utoolity.theme": "light",
         "utoolity.grain": "Soft"
       }
     },
