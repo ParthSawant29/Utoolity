@@ -456,7 +456,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
           initialState={windowState}
           onStateChange={(nextWindowState) => {
             updateWindowState(key, nextWindowState);
-            if (!isSharedViewer) {
+            if (!isSharedViewer || sharedPermission === "editor") {
               window.dispatchEvent(new CustomEvent("utoolity:workspace-state-changed", {
                 detail: {
                   openApps: openApps.map((item) => `${item.app}:${item.filePath ?? ""}` === key ? { ...item, window: nextWindowState } : item),
