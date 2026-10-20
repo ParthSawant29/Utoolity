@@ -226,6 +226,19 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
         setActiveAppKey(detail.payload);
         window.dispatchEvent(new CustomEvent("utoolity:collaboration-audit", { detail: { actorUserId: detail.fromUserId, actorDisplayName: detail.fromDisplayName, action: "focus-app", target: detail.payload } }));
       }
+      if (detail.command === "workspace" && detail.payload && typeof detail.payload === "object") {
+        const workspace = detail.payload as { openApps?: typeof openApps; activeAppKey?: string | null; context?: Record<string, unknown> };
+        if (Array.isArray(workspace.openApps)) setOpenApps(workspace.openApps);
+        if (typeof workspace.activeAppKey === "string") setActiveAppKey(workspace.activeAppKey);
+        if (typeof workspace.context?.boundingBoxFolder === "string" && workspace.context.boundingBoxFolder) {
+          localStorage.setItem("utoolity.bounding-box.folder", workspace.context.boundingBoxFolder);
+          localStorage.setItem("utoolity.polygon.folder", typeof workspace.context.polygonFolder === "string" ? workspace.context.polygonFolder : workspace.context.boundingBoxFolder);
+          window.dispatchEvent(new CustomEvent("utoolity:shared-folder-changed", { detail: { path: workspace.context.boundingBoxFolder } }));
+        }
+        window.dispatchEvent(new CustomEvent("utoolity:collaboration-audit", {
+          detail: { actorUserId: detail.fromUserId, actorDisplayName: detail.fromDisplayName, action: "workspace", target: "desktop" },
+        }));
+      }
       if (detail.command === "window-state" && detail.payload && typeof detail.payload === "object") {
         const payload = detail.payload as { key?: string; window?: WindowState };
         if (typeof payload.key === "string" && payload.window) {
