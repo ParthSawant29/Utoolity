@@ -160,6 +160,7 @@ function Lockcard({
         if (resolvedUser.id === "guest-intern") {
           window.localStorage.removeItem("utoolity.cached-user");
           window.localStorage.removeItem("utoolity.authenticated-user-id");
+          window.localStorage.removeItem(HOSTNAME_STORAGE_KEY);
         } else {
           window.localStorage.setItem("utoolity.cached-user", JSON.stringify(resolvedUser));
           window.localStorage.setItem("utoolity.authenticated-user-id", resolvedUser.id);
