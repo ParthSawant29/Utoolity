@@ -776,6 +776,17 @@ export default async function authRoutes(app: FastifyInstance) {
         requesterSession.collaborationOwnerUserId = userId;
         requesterSession.collaborationPermission = permission;
         void saveSession(requester.request);
+        for (const ownerClient of collaborationClients.values()) {
+          if (ownerClient.userId === userId && ownerClient.socket.readyState === 1) {
+            ownerClient.socket.send(JSON.stringify({
+              type: "shared-session-active",
+              ownerUserId: userId,
+              memberUserId: message.targetUserId,
+              memberDisplayName: requester.displayName,
+              permission,
+            }));
+          }
+        }
         const users = await readUsers();
         const workspaces = await readWorkspaces();
         const workspace = liveWorkspaces.get(userId) ?? workspaces[userId] ?? { openApps: [] };
