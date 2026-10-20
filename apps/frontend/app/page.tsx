@@ -82,6 +82,21 @@ export default function Home() {
   }, [shellState]);
 
   useEffect(() => {
+    const handleInvalidSession = () => {
+      // Only an explicit server 401 invalidates the session. Offline/network
+      // failures are handled separately and leave the cached desktop intact.
+      localStorage.setItem(AUTHENTICATED_SESSION_KEY, "false");
+      localStorage.setItem(SHELL_STATE_KEY, "locked");
+      localStorage.removeItem(SLEEP_STARTED_KEY);
+      socketRef.current?.close(1000, "Session expired");
+      socketRef.current = null;
+      setShellState("locked");
+    };
+    window.addEventListener("utoolity:session-invalid", handleInvalidSession);
+    return () => window.removeEventListener("utoolity:session-invalid", handleInvalidSession);
+  }, []);
+
+  useEffect(() => {
     const handleStorage = (event: StorageEvent) => {
       if (
         event.key === "utoolity.authenticated-user-id" &&
@@ -207,9 +222,14 @@ export default function Home() {
       } catch (error) {
         if (!active) return;
 
-        // A timeout, backend outage, or even a temporarily unavailable session
-        // endpoint must not erase the locally cached device/user state.
-        if (cachedAuthenticated && cachedUserId) {
+        // Preserve the desktop on transport/server outages, but never treat
+        // a definite 401 as authenticated merely because the profile is cached.
+        if (error instanceof ApiError && error.status === 401) {
+          localStorage.setItem(AUTHENTICATED_SESSION_KEY, "false");
+          localStorage.setItem(SHELL_STATE_KEY, "locked");
+          localStorage.removeItem(SLEEP_STARTED_KEY);
+          setShellState("locked");
+        } else if (cachedAuthenticated && cachedUserId) {
           setShellState(cachedShellState);
         } else {
           setShellState("locked");
