@@ -25,6 +25,7 @@ export default function CollaborationPanel() {
   const [draft, setDraft] = useState("");
   const [connected, setConnected] = useState(false);
   const [sharingWith, setSharingWith] = useState<string | null>(null);
+  const [shareRequests, setShareRequests] = useState<Peer[]>([]);
   const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
   const socketRef = useRef<WebSocket | null>(null);
   const pcsRef = useRef(new Map<string, RTCPeerConnection>());
@@ -108,6 +109,17 @@ export default function CollaborationPanel() {
           setMessages((current) => [...current.slice(-99), data as unknown as ChatMessage]);
           return;
         }
+        if (data.type === "screen-share-request" && typeof data.fromUserId === "string") {
+          const requester: Peer = {
+            userId: data.fromUserId,
+            displayName: typeof data.fromDisplayName === "string" ? data.fromDisplayName : "Collaborator",
+            role: "admin",
+          };
+          setShareRequests((current) => current.some((peer) => peer.userId === requester.userId) ? current : [...current, requester]);
+          setOpen(true);
+          setTab("people");
+          return;
+        }
         if (data.type === "screen-share-signal" && typeof data.fromUserId === "string") {
           const from = data.fromUserId;
           const payload = data.payload as SignalPayload | undefined;
@@ -167,6 +179,10 @@ export default function CollaborationPanel() {
     setDraft("");
   };
 
+  const requestScreen = (user: Peer) => {
+    send({ type: "screen-share-request", targetUserId: user.userId, deviceId: getDeviceId() });
+  };
+
   const shareScreen = async (user: Peer) => {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
@@ -208,6 +224,20 @@ export default function CollaborationPanel() {
             <div className="flex items-center gap-2 text-sm font-semibold"><Users className="size-4" /> Collaboration <span className={connected ? "size-2 rounded-full bg-emerald-500" : "size-2 rounded-full bg-destructive"} /></div>
             <button type="button" aria-label="Close collaboration" onClick={() => setOpen(false)} className="rounded-lg p-1.5 hover:bg-muted"><X className="size-4" /></button>
           </header>
+          {shareRequests.length > 0 && (
+            <div className="space-y-2 border-b border-border bg-primary/5 p-3">
+              {shareRequests.map((requester) => (
+                <div key={requester.userId} className="rounded-xl border border-border p-3">
+                  <p className="text-sm font-semibold">{requester.displayName} requested to view your screen.</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Accepting opens the browser's screen-sharing permission prompt.</p>
+                  <div className="mt-2 flex gap-2">
+                    <button type="button" onClick={() => { setShareRequests((current) => current.filter((item) => item.userId !== requester.userId)); void shareScreen(requester); }} className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground">Share screen</button>
+                    <button type="button" onClick={() => setShareRequests((current) => current.filter((item) => item.userId !== requester.userId))} className="rounded-lg border border-border px-3 py-2 text-xs">Decline</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="flex border-b border-border p-1">
             <button type="button" onClick={() => setTab("people")} className={`flex-1 rounded-lg px-3 py-2 text-sm ${tab === "people" ? "bg-muted font-semibold" : "text-muted-foreground"}`}>People ({peers.length})</button>
             <button type="button" onClick={() => setTab("chat")} className={`flex-1 rounded-lg px-3 py-2 text-sm ${tab === "chat" ? "bg-muted font-semibold" : "text-muted-foreground"}`}>Chat</button>
@@ -219,7 +249,8 @@ export default function CollaborationPanel() {
                 <div key={`${peer.userId}-${index}`} className="flex items-center gap-3 rounded-xl border border-border/70 p-3">
                   <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold">{peer.displayName.slice(0, 1).toUpperCase()}</div>
                   <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{peer.displayName}</p><p className="text-xs capitalize text-muted-foreground">{peer.role}</p></div>
-                  <button type="button" onClick={() => void shareScreen(peer)} disabled={sharingWith === peer.userId} title="Share your screen" className="rounded-lg border border-border p-2 hover:bg-muted disabled:opacity-50"><MonitorUp className="size-4" /></button>
+                  {peer.role === "intern" && <button type="button" onClick={() => requestScreen(peer)} title="Request to view this screen" className="rounded-lg border border-border p-2 hover:bg-muted"><MonitorUp className="size-4" /></button>}
+                  <button type="button" onClick={() => void shareScreen(peer)} disabled={sharingWith === peer.userId} title="Share your screen with this user" className="rounded-lg border border-border p-2 hover:bg-muted disabled:opacity-50"><MonitorUp className="size-4" /></button>
                 </div>
               ))}
               {sharingWith && <p className="text-xs text-muted-foreground">Sharing your screen with {peers.find((peer) => peer.userId === sharingWith)?.displayName ?? "user"}.</p>}
