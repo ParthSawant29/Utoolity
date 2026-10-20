@@ -19,8 +19,19 @@
       "role": "intern",
       "active": true,
       "activeApps": [],
-      "lastActivityAt": 1792448483689,
-      "updatedAt": 1792448483689
+      "lastActivityAt": 1792449328218,
+      "updatedAt": 1792449328218
+    },
+    "Wraith OS:99ed7d4b-a575-4ab6-bcd5-872089ffe502": {
+      "userId": "Wraith OS",
+      "hostname": "wraith-os",
+      "displayName": "Harshal Chaudhari",
+      "deviceId": "99ed7d4b-a575-4ab6-bcd5-872089ffe502",
+      "role": "intern",
+      "active": true,
+      "activeApps": [],
+      "lastActivityAt": 1792467337545,
+      "updatedAt": 1792467337546
     }
   }
 }

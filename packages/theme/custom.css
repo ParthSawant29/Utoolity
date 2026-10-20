@@ -291,6 +291,7 @@
     0% {
       transform: translateY(0) scale(1) rotate(0deg);
     }
+  }
 
     @keyframes desktop-icon-hover-reverse {
       0% {
@@ -298,7 +299,6 @@
       }
       100% {
         transform: translateY(0) scale(1) rotate(0deg);
-      }
     }
     45% {
       transform: translateY(-7px) scale(1.16) rotate(-4deg);
