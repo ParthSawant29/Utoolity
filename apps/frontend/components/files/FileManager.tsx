@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowLeft, ArrowRight, Check, ChevronRight, Download, File, FileImage,
-  FileText, Folder, FolderPlus, Grid2X2, Image as ImageIcon, MoreHorizontal,
-  Pencil, RefreshCw, Search, Share2, Trash2, Upload, X,
+  ArrowLeft, ArrowRight, Archive, Check, ChevronRight, Download, File,
+  FileText, Folder, FolderPlus, Image as ImageIcon, MoreHorizontal,
+  Pencil, Plus, RefreshCw, Search, Share2, Trash2, Upload, X,
 } from "lucide-react";
 import { api, API_URL, ApiError } from "@/lib/api";
 
@@ -40,6 +40,7 @@ export default function FileManager({ onOpenFile }: Props) {
   const [folderPickerRequester, setFolderPickerRequester] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
+  const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -235,7 +236,6 @@ export default function FileManager({ onOpenFile }: Props) {
         </div>
         <div className="flex items-center gap-2">
           <button type="button" onClick={() => setFolderDialogOpen(true)} disabled={busy} className="inline-flex h-9 items-center gap-2 rounded-xl border border-border px-3 text-sm font-semibold hover:bg-accent disabled:opacity-50"><FolderPlus className="size-4" /><span className="hidden sm:inline">New folder</span></button>
-          <button type="button" onClick={() => (folderPickerMode ? folderInputRef.current : inputRef.current)?.click()} disabled={busy} className="inline-flex h-9 items-center gap-2 rounded-xl bg-primary px-3 text-sm font-bold text-primary-foreground hover:opacity-90 disabled:opacity-50"><Upload className="size-4" />Upload</button>
           <button type="button" onClick={() => void load(path)} aria-label="Refresh" title="Refresh" disabled={loading} className="flex size-9 items-center justify-center rounded-xl border border-border hover:bg-accent disabled:opacity-50"><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /></button>
         </div>
         <input ref={inputRef} hidden type="file" multiple onChange={(event) => void upload(event.target.files)} />
@@ -258,7 +258,7 @@ export default function FileManager({ onOpenFile }: Props) {
 
       {error && <div role="alert" className="mx-5 mt-4 flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"><span className="min-w-0 flex-1">{error}</span><button type="button" aria-label="Dismiss error" onClick={() => setError(null)}><X className="size-4" /></button></div>}
 
-      <section className="min-h-0 flex-1 overflow-y-auto p-5">
+      <section className="relative min-h-0 flex-1 overflow-y-auto p-5">
         {loading ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {Array.from({ length: 8 }, (_, index) => <div key={index} className="h-36 animate-pulse rounded-2xl border border-border bg-muted/40" />)}
@@ -290,6 +290,7 @@ export default function FileManager({ onOpenFile }: Props) {
                         {folderPickerMode && directory && <button type="button" onClick={selectFolderForPolygon} className="flex w-full items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-left text-sm font-semibold text-primary hover:bg-primary/15"><Check className="size-4" />Use this folder</button>}
                         <button type="button" onClick={() => openEntry(entry)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"><ArrowRight className="size-4" />{directory ? "Open folder" : "Open file"}</button>
                         {!directory && <a href={`${API_URL}/api/storage/download?path=${encodeURIComponent(entry.path)}`} onClick={() => setMenuOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-accent"><Download className="size-4" />Download</a>}
+                        {!directory && entry.name.toLowerCase().endsWith(".zip") && <button type="button" onClick={() => void withBusy(async () => { try { await api("/api/storage/extract", { method: "POST", body: JSON.stringify({ path: entry.path }) }); await load(path); setMenuOpen(false); } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to extract archive."); } })} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"><Archive className="size-4" />Extract here</button>}
                         <button type="button" onClick={() => void renameSelected()} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"><Pencil className="size-4" />Rename</button>
                         <button type="button" onClick={() => void showShare()} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"><Share2 className="size-4" />Share</button>
                         <div className="my-1 border-t border-border" />
@@ -317,6 +318,19 @@ export default function FileManager({ onOpenFile }: Props) {
           <button type="button" disabled={path === "server" || loading} onClick={() => void load(parentPath)} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-semibold hover:bg-accent disabled:opacity-40"><ArrowLeft className="size-4" />Back</button>
         </div>
       </footer>
+
+      <div className="absolute bottom-6 right-6 z-40">
+        {plusMenuOpen && (
+          <div className="absolute bottom-16 right-0 w-48 rounded-2xl border border-border bg-popover p-1.5 text-popover-foreground shadow-2xl">
+            <button type="button" onClick={() => { setPlusMenuOpen(false); inputRef.current?.click(); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium hover:bg-accent"><Upload className="size-4" />Upload files</button>
+            <button type="button" onClick={() => { setPlusMenuOpen(false); folderInputRef.current?.click(); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium hover:bg-accent"><Folder className="size-4" />Upload folder</button>
+            <button type="button" onClick={() => { setPlusMenuOpen(false); setFolderDialogOpen(true); }} className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm font-medium hover:bg-accent"><FolderPlus className="size-4" />New folder</button>
+          </div>
+        )}
+        <button type="button" aria-label="Add files or folders" title="Add files or folders" disabled={busy} onClick={() => setPlusMenuOpen((open) => !open)} className="flex size-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-xl ring-4 ring-background/80 transition-transform hover:scale-105 active:scale-95 disabled:opacity-50">
+          {plusMenuOpen ? <X className="size-6" /> : <Plus className="size-6" />}
+        </button>
+      </div>
 
       {folderDialogOpen && (
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) { setFolderDialogOpen(false); setFolderName(""); } }}>
