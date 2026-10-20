@@ -8,7 +8,7 @@ import SystemTray from "./SystemTray";
 import { api } from "../../lib/api";
 import DesktopContextMenu, { type MenuAction } from "./DesktopContextMenu";
 import DesktopApps from "./DesktopApps";
-import { getWallpapers } from "../../lib/wallpapers";
+import { DEFAULT_WALLPAPER_ID, WALLPAPERS, normalizeWallpaperId, readWallpaperPreference, saveWallpaperPreference } from "../../lib/wallpapers";
 import ToolContent, { appTitles, type DesktopAppId } from "./ToolContent";
 import type { WindowSummary } from "./SystemTray/AllWindows";
 
@@ -187,24 +187,11 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
         void request.call(document.documentElement);
       }
     } else if (action === "wallpaper") {
-      void getWallpapers()
-        .then((wallpapers) => {
-          if (wallpapers.length === 0) return;
-          const current = root.dataset.wallpaper ?? "default.jpg";
-          const currentIndex = wallpapers.findIndex(({ file }) => file === current);
-          const next = wallpapers[(currentIndex + 1 + wallpapers.length) % wallpapers.length].file;
-          root.dataset.wallpaper = next;
-          localStorage.setItem("utoolity.wallpaper", next);
-          window.dispatchEvent(new CustomEvent("utoolity:preference-changed", {
-            detail: { key: "utoolity.wallpaper", value: next },
-          }));
-          window.dispatchEvent(new CustomEvent("utoolity:wallpaper-changed", { detail: next }));
-          return api("/api/auth/preferences", {
-            method: "PATCH",
-            body: JSON.stringify({ "utoolity.wallpaper": next }),
-          });
-        })
-        .catch(() => undefined);
+      if (WALLPAPERS.length) {
+        const current = normalizeWallpaperId(root.dataset.wallpaper ?? readWallpaperPreference());
+        const index = WALLPAPERS.findIndex(({ id }) => id === current);
+        saveWallpaperPreference(WALLPAPERS[(index + 1 + WALLPAPERS.length) % WALLPAPERS.length].id);
+      }
     } else if (action === "theme") {
       const nextTheme = root.classList.contains("dark") ? "light" : "dark";
       root.classList.toggle("dark", nextTheme === "dark");
@@ -233,7 +220,6 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
   useEffect(() => {
     const root = document.documentElement;
     const values = [
-      ["wallpaper", "utoolity.wallpaper"],
       ["lockscreen", "utoolity.lockscreen"],
       ["animations", "utoolity.animations"],
       ["grain", "utoolity.grain"],
@@ -242,27 +228,14 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
 
     values.forEach(([attribute, key]) => {
       const value = localStorage.getItem(key);
-      if (value) {
-        root.dataset[attribute] =
-          attribute === "wallpaper" ? (value === "Midnight" ? "default.jpg" : value) : value.toLowerCase();
-      }
+      if (value) root.dataset[attribute] = value.toLowerCase();
     });
 
     void api<{ preferences: Record<string, string> }>("/api/auth/preferences")
       .then(({ preferences }) => {
         Object.entries(preferences).forEach(([key, value]) => {
-          localStorage.setItem(key, value);
+          if (key !== "utoolity.wallpaper") localStorage.setItem(key, value);
         });
-        if (preferences["utoolity.wallpaper"]) {
-          const wallpaper = preferences["utoolity.wallpaper"] === "Midnight"
-            ? "default.jpg"
-            : preferences["utoolity.wallpaper"];
-          root.dataset.wallpaper = wallpaper;
-          window.dispatchEvent(new CustomEvent("utoolity:preference-changed", {
-            detail: { key: "utoolity.wallpaper", value: wallpaper },
-          }));
-          window.dispatchEvent(new CustomEvent("utoolity:wallpaper-changed", { detail: wallpaper }));
-        }
         if (preferences["utoolity.animations"]) {
           root.dataset.animations = preferences["utoolity.animations"].toLowerCase();
           root.dataset.animation = preferences["utoolity.animations"].toLowerCase();
