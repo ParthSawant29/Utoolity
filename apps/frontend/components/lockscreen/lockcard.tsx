@@ -228,24 +228,36 @@ function Lockcard({
           resolvedUser = fallback.user;
         }
         if (!active) return;
-        if (!resolvedUser || resolvedUser.id === "guest-intern") {
-          throw new Error("This device has not been assigned to an account yet.");
-        }
+        if (!resolvedUser) throw new Error("The backend returned an empty profile.");
 
-        window.localStorage.setItem("utoolity.cached-user", JSON.stringify(resolvedUser));
+        // Guest is a valid profile for a fresh/unconfigured device. Do not cache it
+        // as the authenticated user; the next account assignment must resolve afresh.
+        if (resolvedUser.id === "guest-intern") {
+          window.localStorage.removeItem("utoolity.cached-user");
+          window.localStorage.removeItem("utoolity.authenticated-user-id");
+        } else {
+          window.localStorage.setItem("utoolity.cached-user", JSON.stringify(resolvedUser));
+          window.localStorage.setItem("utoolity.authenticated-user-id", resolvedUser.id);
+          window.localStorage.setItem(HOSTNAME_STORAGE_KEY, resolvedUser.hostname);
+        }
         setProfile({ ...resolvedUser, locked: true });
         setHostname(resolvedUser.hostname);
-        window.localStorage.setItem(HOSTNAME_STORAGE_KEY, resolvedUser.hostname);
         setError("");
       } catch (cause) {
         if (!active) return;
         console.error("Failed to load lockscreen profile:", cause);
-        setProfile(getInitialProfile(configuredHostname));
-        setError(
-          cause instanceof Error
-            ? `Unable to load the device profile: ${cause.message}`
-            : "Unable to contact the backend.",
-        );
+        // Keep the lock screen usable for an unconfigured device during a
+        // transient profile lookup failure. The backend remains authoritative
+        // when the password is submitted.
+        const guest: NonNullable<LockProfileResponse["user"]> = {
+          id: "guest-intern",
+          hostname: "guest-intern",
+          displayName: "Guest Intern",
+          role: "intern",
+        };
+        setProfile({ ...guest, locked: true });
+        setHostname(guest.hostname);
+        setError("Guest mode — connect to the backend to authenticate.");
       } finally {
         if (active) setLoadingProfile(false);
       }
