@@ -512,7 +512,7 @@
 html,
 body,
 body * {
-  cursor: url("/cursors/bibata-pointer.svg") 6 3, auto !important;
+  cursor: url("/cursors/bibata-pointer.svg") 6 3, none !important;
 }
 
 a,
@@ -525,19 +525,19 @@ input[type="radio"],
 input[type="range"],
 label[for],
 .desktop-app-icon {
-  cursor: url("/cursors/bibata-hand.svg") 8 2, pointer !important;
+  cursor: url("/cursors/bibata-hand.svg") 8 2, none !important;
 }
 
 input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 textarea,
 [contenteditable="true"] {
-  cursor: url("/cursors/bibata-text.svg") 8 8, text !important;
+  cursor: url("/cursors/bibata-text.svg") 8 8, none !important;
 }
 
 [draggable="true"],
 .desktop-window [data-drag-handle],
 .desktop-window .active\:cursor-grabbing:active {
-  cursor: url("/cursors/bibata-move.svg") 8 8, move !important;
+  cursor: url("/cursors/bibata-move.svg") 8 8, none !important;
 }
 
 [aria-busy="true"],
@@ -547,7 +547,7 @@ button:disabled,
 input:disabled,
 select:disabled,
 textarea:disabled {
-  cursor: url("/cursors/bibata-loading.svg") 8 8, progress !important;
+  cursor: url("/cursors/bibata-loading.svg") 8 8, none !important;
 }
 
 [data-cursor="move"] {
