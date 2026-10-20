@@ -14,6 +14,7 @@ import type {
 
 type BoundingBoxCanvasProps = {
   imageSrc: string | null;
+  interactionDisabled?: boolean;
   points: Point[];
   polygons: BoundingBoxAnnotation[];
   tool: AnnotationTool;
@@ -45,6 +46,7 @@ const POLYGON_FILL = "rgba(34, 197, 94, 0.3)";
 
 export function BoundingBoxCanvas({
   imageSrc,
+  interactionDisabled = false,
   points,
   polygons,
   tool,
@@ -679,7 +681,7 @@ export function BoundingBoxCanvas({
         return;
       }
 
-      if (event.button !== 0) {
+      if (event.button !== 0 || interactionDisabled) {
         return;
       }
 
@@ -780,6 +782,7 @@ export function BoundingBoxCanvas({
       screenToImage,
       tool,
       removeMode,
+      interactionDisabled,
     ],
   );
 
