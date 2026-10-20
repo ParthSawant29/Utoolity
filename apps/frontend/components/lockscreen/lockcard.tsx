@@ -32,7 +32,7 @@ type LockProfileResponse = {
     id: string;
     hostname: string;
     displayName: string;
-    role: "intern";
+    role: "intern" | "admin";
   };
 };
 type UnlockResponse = {
@@ -41,7 +41,7 @@ type UnlockResponse = {
     id: string;
     hostname: string;
     displayName: string;
-    role: "intern";
+    role: "intern" | "admin";
   };
 };
 type LockcardProps = {
