@@ -17,6 +17,7 @@ export default function CollaborationPanel() {
   const [users, setUsers] = useState<Peer[]>([]);
   const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [cursors, setCursors] = useState<Record<string, Cursor>>({});
+  const [joinedUsers, setJoinedUsers] = useState<Set<string>>(new Set());
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [connected, setConnected] = useState(false);
@@ -79,7 +80,7 @@ export default function CollaborationPanel() {
           return;
         }
         if (data.type === "join-request-result") {
-          setNotice(data.status === "pending" ? "Join request sent. Waiting for approval." : "That user is currently offline.");
+          setNotice(data.status === "pending" ? "Join request sent. Waiting for approval." : data.status === "not-found" ? "That profile no longer exists." : data.status === "already-in-session" ? "Leave your current session before requesting another." : "That user is currently offline.");
           return;
         }
         if (data.type === "join-declined") {
@@ -98,6 +99,9 @@ export default function CollaborationPanel() {
         }
         if (data.type === "join-left" || data.type === "shared-session-ended") {
           setJoinedOwner(null);
+          setMembers([]);
+          setJoinedUsers(new Set());
+          setCursors({});
           window.dispatchEvent(new CustomEvent("utoolity:shared-session-ended"));
           setNotice(data.type === "shared-session-ended" ? "The host ended the shared session." : "You left the shared session.");
           return;
@@ -109,11 +113,14 @@ export default function CollaborationPanel() {
           return;
         }
         if (data.type === "shared-members" && Array.isArray(data.members)) {
-          setMembers(data.members as Member[]);
+          const nextMembers = data.members as Member[];
+          setMembers(nextMembers);
+          setJoinedUsers(new Set(nextMembers.map((member) => member.userId)));
           return;
         }
         if (data.type === "shared-member-left" && typeof data.userId === "string") {
           setMembers((current) => current.filter((member) => member.userId !== data.userId));
+          setJoinedUsers((current) => { const next = new Set(current); next.delete(data.userId as string); return next; });
           return;
         }
         if (data.type === "shared-workspace" && typeof data.ownerUserId === "string") {
@@ -173,6 +180,14 @@ export default function CollaborationPanel() {
   }, [joinedOwner, send]);
 
   useEffect(() => {
+    const cleanup = window.setInterval(() => {
+      const now = Date.now();
+      setCursors((current) => Object.fromEntries(Object.entries(current).filter(([, cursor]) => now - cursor.timestamp < 12000)));
+    }, 3000);
+    return () => window.clearInterval(cleanup);
+  }, []);
+
+  useEffect(() => {
     let lastSent = 0;
     const handlePointer = (event: MouseEvent) => {
       const now = Date.now();
@@ -197,6 +212,9 @@ export default function CollaborationPanel() {
   const leaveSession = () => {
     send({ type: "join-leave", deviceId: getDeviceId() });
     setJoinedOwner(null);
+    setMembers([]);
+    setJoinedUsers(new Set());
+    setCursors({});
     window.dispatchEvent(new CustomEvent("utoolity:shared-session-ended"));
   };
 
@@ -229,7 +247,7 @@ export default function CollaborationPanel() {
     <>
       {Object.values(cursors).map((cursor) => (
         <div key={cursor.userId} aria-hidden="true" className="pointer-events-none fixed z-[1100] flex items-center gap-1.5 transition-[left,top] duration-75" style={{ left: `${cursor.x * 100}vw`, top: `${cursor.y * 100}vh` }}>
-          <img src="/cursors/bibata-pointer.svg" alt="" className="h-7 w-7 object-contain drop-shadow-md" />
+          <img src="/cursors/bibata-pointer.svg" alt="" className="h-8 w-8 object-contain drop-shadow-md" style={{ transform: "translate(-3px, -3px)", transformOrigin: "top left" }} />
           <span className="rounded-md bg-primary px-2 py-1 text-[10px] font-semibold text-primary-foreground shadow">{cursor.displayName}</span>
         </div>
       ))}
@@ -298,7 +316,7 @@ export default function CollaborationPanel() {
                   <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold">{user.displayName.slice(0, 1).toUpperCase()}</div>
                   <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{user.displayName}</p><p className="text-xs text-muted-foreground">{onlineUsers.has(user.userId) || user.online ? "Active now" : "Offline"}</p></div>
                   <span className={`size-2 rounded-full ${onlineUsers.has(user.userId) || user.online ? "bg-emerald-500" : "bg-muted-foreground/35"}`} />
-                  <button type="button" onClick={() => requestJoin(user)} disabled={!connected || !(onlineUsers.has(user.userId) || user.online) || Boolean(joinedOwner)} title="Request to join this desktop" className="rounded-lg border border-border p-2 hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"><Eye className="size-4" /></button>
+                  <button type="button" onClick={() => requestJoin(user)} disabled={!connected || !(onlineUsers.has(user.userId) || user.online) || Boolean(joinedOwner)} title={joinedUsers.has(user.userId) ? "Already in your session" : "Request to join this desktop"} disabled={!connected || !(onlineUsers.has(user.userId) || user.online) || Boolean(joinedOwner) || joinedUsers.has(user.userId)} className="rounded-lg border border-border p-2 hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"><Eye className="size-4" /></button>
                 </div>
               ))}
               <p className="px-1 text-xs text-muted-foreground">The host must approve every join and chooses view-only or editor access.</p>
