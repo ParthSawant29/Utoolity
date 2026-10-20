@@ -66,6 +66,7 @@ export default function BoundingBoxStudio() {
   const suppressAnnotationSyncRef = useRef(false);
   const currentActorRef = useRef("Unknown");
   const remoteWriteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadImageAnnotationsRef = useRef<(image: ImageItem, folderPath: string) => Promise<void>>(async () => undefined);
 
   const loadImageAnnotations = async (image: ImageItem, folderPath: string) => {
     const requestId = ++annotationRequestRef.current;
@@ -105,11 +106,16 @@ export default function BoundingBoxStudio() {
       );
     } catch {
       if (requestId !== annotationRequestRef.current) return;
+      suppressAnnotationSyncRef.current = true;
       loadAnnotations([]);
     } finally {
-      if (requestId === annotationRequestRef.current) setAnnotationsLoaded(true);
+      if (requestId === annotationRequestRef.current) {
+        setAnnotationsLoaded(true);
+        window.setTimeout(() => { suppressAnnotationSyncRef.current = false; }, 120);
+      }
     }
   };
+  loadImageAnnotationsRef.current = loadImageAnnotations;
 
   const loadFolder = async (folderPath: string) => {
     const result = await api<{
@@ -207,8 +213,8 @@ export default function BoundingBoxStudio() {
       if (!payload || !Array.isArray(payload.annotations)) return;
       const localFolder = localStorage.getItem("utoolity.bounding-box.folder");
       if (payload.folderPath && localFolder && payload.folderPath !== localFolder) return;
-      if (payload.imageName && currentImage?.name && payload.imageName !== currentImage.name) return;
       if (!currentImage || selectedImageIndex === null) return;
+      if (payload.imageName && payload.imageName !== currentImage.name) return;
       suppressAnnotationSyncRef.current = true;
       if (typeof payload.imageWidth === "number" && typeof payload.imageHeight === "number") {
         setImageDimensions({ width: payload.imageWidth, height: payload.imageHeight });
@@ -226,7 +232,7 @@ export default function BoundingBoxStudio() {
       window.removeEventListener("utoolity:annotation-state", receiveRemoteAnnotations);
       if (remoteWriteTimerRef.current) clearTimeout(remoteWriteTimerRef.current);
     };
-  }, [currentImage, selectedImageIndex, loadAnnotations, saveAnnotations]);
+  }, [currentImage, selectedImageIndex, loadAnnotations, saveAnnotations, polygons]);
 
   useEffect(() => {
     if (!annotationsLoaded || !currentImage || selectedImageIndex === null) return;
