@@ -662,6 +662,22 @@ export default async function authRoutes(app: FastifyInstance) {
         return;
       }
 
+      if (message.type === "screen-share-request") {
+        if (typeof message.targetUserId !== "string") return;
+        const forwarded = JSON.stringify({
+          type: "screen-share-request",
+          fromUserId: userId,
+          fromDisplayName: client.displayName,
+          timestamp: Date.now(),
+        });
+        for (const target of collaborationClients.values()) {
+          if (target.userId === message.targetUserId && target.socket.readyState === 1) {
+            target.socket.send(forwarded);
+          }
+        }
+        return;
+      }
+
       if (message.type === "screen-share-signal") {
         if (typeof message.targetUserId !== "string") return;
         const forwarded = JSON.stringify({
