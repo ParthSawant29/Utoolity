@@ -206,12 +206,8 @@
   .lockscreen-shell {
     isolation: isolate;
     -webkit-tap-highlight-color: transparent;
-    background:
-      radial-gradient(circle at 15% 10%, color-mix(in oklab, var(--primary) 22%, transparent), transparent 32%),
-      radial-gradient(circle at 85% 15%, color-mix(in oklab, var(--accent) 28%, transparent), transparent 30%),
-      radial-gradient(circle at 50% 100%, color-mix(in oklab, var(--secondary) 24%, transparent), transparent 42%),
-      var(--background);
-    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--border) 45%, transparent);
+    background: transparent;
+    box-shadow: none;
   }
 
   .lockscreen-wallpaper {
