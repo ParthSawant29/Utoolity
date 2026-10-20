@@ -1,68 +1,53 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { MessageCircle, MonitorUp, Users, X } from "lucide-react";
+import { MessageCircle, Users, X, Check, XCircle, Eye, Pencil, LogOut } from "lucide-react";
 import { getDeviceId } from "@/lib/api";
+import { api } from "@/lib/api";
 
-type Peer = { userId: string; displayName: string; role: string };
+type Peer = { userId: string; displayName: string; role: string; online?: boolean };
+type Member = { userId: string; displayName: string; permission: "view" | "editor" };
 type ChatMessage = { id: string; userId: string; displayName: string; text: string; timestamp: number };
 type Cursor = { userId: string; displayName: string; x: number; y: number; timestamp: number };
-type SignalPayload =
-  | { type: "offer"; description: RTCSessionDescriptionInit }
-  | { type: "answer"; description: RTCSessionDescriptionInit }
-  | { type: "candidate"; candidate: RTCIceCandidateInit };
-
-const rtcConfig: RTCConfiguration = {
-  iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
-};
+type SharedWorkspace = { openApps?: Array<{ app: string; filePath?: string; window?: unknown }> };
 
 export default function CollaborationPanel() {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"people" | "chat">("people");
-  const [peers, setPeers] = useState<Peer[]>([]);
+  const [users, setUsers] = useState<Peer[]>([]);
+  const [onlineUsers, setOnlineUsers] = useState<Set<string>>(new Set());
   const [cursors, setCursors] = useState<Record<string, Cursor>>({});
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [connected, setConnected] = useState(false);
-  const [sharingWith, setSharingWith] = useState<string | null>(null);
-  const [shareRequests, setShareRequests] = useState<Peer[]>([]);
-  const [remoteStreams, setRemoteStreams] = useState<Record<string, MediaStream>>({});
+  const [requests, setRequests] = useState<Peer[]>([]);
+  const [permissionChoice, setPermissionChoice] = useState<Record<string, "view" | "editor">>({});
+  const [members, setMembers] = useState<Member[]>([]);
+  const [joinedOwner, setJoinedOwner] = useState<{ userId: string; displayName: string; permission: "view" | "editor" } | null>(null);
+  const [notice, setNotice] = useState("");
   const socketRef = useRef<WebSocket | null>(null);
-  const pcsRef = useRef(new Map<string, RTCPeerConnection>());
-  const streamsRef = useRef(new Map<string, MediaStream>());
 
   const send = useCallback((value: unknown) => {
     const socket = socketRef.current;
     if (socket?.readyState === WebSocket.OPEN) socket.send(JSON.stringify(value));
   }, []);
 
-  const sendSignal = useCallback((targetUserId: string, payload: SignalPayload) => {
-    send({ type: "screen-share-signal", targetUserId, payload });
-  }, [send]);
+  const loadUsers = useCallback(() => {
+    void api<{ users: Peer[] }>("/api/auth/collaboration/users")
+      .then((result) => setUsers(result.users ?? []))
+      .catch(() => setNotice("Unable to load profiles. Check your connection."));
+  }, []);
 
-  const makePeerConnection = useCallback((userId: string) => {
-    const previous = pcsRef.current.get(userId);
-    if (previous) return previous;
-    const pc = new RTCPeerConnection(rtcConfig);
-    pc.onicecandidate = (event) => {
-      if (event.candidate) sendSignal(userId, { type: "candidate", candidate: event.candidate.toJSON() });
+  useEffect(() => {
+    const openPanel = () => {
+      setOpen(true);
+      setTab("people");
+      loadUsers();
     };
-    pc.ontrack = (event) => {
-      const stream = event.streams[0];
-      if (stream) setRemoteStreams((current) => ({ ...current, [userId]: stream }));
-    };
-    pc.onconnectionstatechange = () => {
-      if (["failed", "closed", "disconnected"].includes(pc.connectionState)) {
-        setRemoteStreams((current) => {
-          const next = { ...current };
-          delete next[userId];
-          return next;
-        });
-      }
-    };
-    pcsRef.current.set(userId, pc);
-    return pc;
-  }, [sendSignal]);
+    window.addEventListener("utoolity:open-collaboration", openPanel);
+    loadUsers();
+    return () => window.removeEventListener("utoolity:open-collaboration", openPanel);
+  }, [loadUsers]);
 
   useEffect(() => {
     let retry: number | undefined;
@@ -81,62 +66,78 @@ export default function CollaborationPanel() {
         let data: Record<string, unknown>;
         try { data = JSON.parse(String(event.data)) as Record<string, unknown>; } catch { return; }
         if (data.type === "presence" && Array.isArray(data.users)) {
-          const currentUserId = window.localStorage.getItem("utoolity.authenticated-user-id");
-          const next = data.users.filter((item): item is Peer =>
-            !!item && typeof item === "object" &&
-            typeof (item as Peer).userId === "string" &&
-            typeof (item as Peer).displayName === "string" &&
-            (item as Peer).userId !== currentUserId,
-          );
-          setPeers(next);
+          const ids = new Set(data.users.flatMap((item) => item && typeof item === "object" && typeof (item as {userId?:unknown}).userId === "string" ? [(item as {userId:string}).userId] : []));
+          setOnlineUsers(ids);
+          loadUsers();
           return;
         }
-        if (data.type === "cursor" && typeof data.userId === "string" &&
-            typeof data.x === "number" && typeof data.y === "number") {
-          setCursors((current) => ({
-            ...current,
-            [data.userId as string]: {
-              userId: data.userId as string,
-              displayName: typeof data.displayName === "string" ? data.displayName : "Collaborator",
-              x: data.x as number,
-              y: data.y as number,
-              timestamp: Date.now(),
-            },
-          }));
-          return;
-        }
-        if (data.type === "chat" && typeof data.text === "string") {
-          setMessages((current) => [...current.slice(-99), data as unknown as ChatMessage]);
-          return;
-        }
-        if (data.type === "screen-share-request" && typeof data.fromUserId === "string") {
-          const requester: Peer = {
-            userId: data.fromUserId,
-            displayName: typeof data.fromDisplayName === "string" ? data.fromDisplayName : "Collaborator",
-            role: "admin",
-          };
-          setShareRequests((current) => current.some((peer) => peer.userId === requester.userId) ? current : [...current, requester]);
+        if (data.type === "join-request" && typeof data.fromUserId === "string") {
+          const item = { userId: data.fromUserId, displayName: typeof data.fromDisplayName === "string" ? data.fromDisplayName : data.fromUserId, role: "intern" };
+          setRequests((current) => current.some((request) => request.userId === item.userId) ? current : [...current, item]);
           setOpen(true);
           setTab("people");
           return;
         }
-        if (data.type === "screen-share-signal" && typeof data.fromUserId === "string") {
-          const from = data.fromUserId;
-          const payload = data.payload as SignalPayload | undefined;
-          if (!payload || typeof payload !== "object") return;
-          void (async () => {
-            const pc = makePeerConnection(from);
-            if (payload.type === "offer" && "description" in payload) {
-              await pc.setRemoteDescription(payload.description);
-              const answer = await pc.createAnswer();
-              await pc.setLocalDescription(answer);
-              sendSignal(from, { type: "answer", description: answer });
-            } else if (payload.type === "answer" && "description" in payload) {
-              await pc.setRemoteDescription(payload.description);
-            } else if (payload.type === "candidate" && "candidate" in payload) {
-              try { await pc.addIceCandidate(payload.candidate); } catch { /* late ICE after peer teardown */ }
-            }
-          })().catch((error) => console.warn("Collaboration signaling failed", error));
+        if (data.type === "join-request-result") {
+          setNotice(data.status === "pending" ? "Join request sent. Waiting for approval." : "That user is currently offline.");
+          return;
+        }
+        if (data.type === "join-declined") {
+          setNotice(`${String(data.ownerDisplayName ?? "User")} declined the join request.`);
+          return;
+        }
+        if (data.type === "join-approved" && typeof data.ownerUserId === "string") {
+          const permission = data.permission === "editor" ? "editor" : "view";
+          const displayName = typeof data.ownerDisplayName === "string" ? data.ownerDisplayName : data.ownerUserId;
+          setJoinedOwner({ userId: data.ownerUserId, displayName, permission });
+          setNotice(`Joined ${displayName} in ${permission === "editor" ? "editor" : "view-only"} mode.`);
+          window.dispatchEvent(new CustomEvent("utoolity:shared-session-changed", {
+            detail: { ownerUserId: data.ownerUserId, ownerDisplayName: displayName, permission, workspace: data.workspace },
+          }));
+          return;
+        }
+        if (data.type === "join-left" || data.type === "shared-session-ended") {
+          setJoinedOwner(null);
+          window.dispatchEvent(new CustomEvent("utoolity:shared-session-ended"));
+          setNotice(data.type === "shared-session-ended" ? "The host ended the shared session." : "You left the shared session.");
+          return;
+        }
+        if (data.type === "shared-permission") {
+          const permission = data.permission === "editor" ? "editor" : "view";
+          setJoinedOwner((current) => current ? { ...current, permission } : current);
+          window.dispatchEvent(new CustomEvent("utoolity:shared-permission-changed", { detail: { permission } }));
+          return;
+        }
+        if (data.type === "shared-members" && Array.isArray(data.members)) {
+          setMembers(data.members as Member[]);
+          return;
+        }
+        if (data.type === "shared-member-left" && typeof data.userId === "string") {
+          setMembers((current) => current.filter((member) => member.userId !== data.userId));
+          return;
+        }
+        if (data.type === "shared-workspace" && typeof data.ownerUserId === "string") {
+          window.dispatchEvent(new CustomEvent("utoolity:shared-workspace", { detail: data }));
+          return;
+        }
+        if (data.type === "shared-workspace-command" && typeof data.command === "string") {
+          window.dispatchEvent(new CustomEvent("utoolity:shared-workspace-command", { detail: data }));
+          return;
+        }
+        if (data.type === "cursor" && typeof data.userId === "string" && typeof data.x === "number" && typeof data.y === "number") {
+          setCursors((current) => ({ ...current, [data.userId as string]: {
+            userId: data.userId as string,
+            displayName: typeof data.displayName === "string" ? data.displayName : "Collaborator",
+            x: data.x as number, y: data.y as number, timestamp: Date.now(),
+          }}));
+          return;
+        }
+        if (data.type === "annotation-state") {
+          window.dispatchEvent(new CustomEvent("utoolity:annotation-state", { detail: data }));
+          return;
+        }
+        if (data.type === "chat" && typeof data.text === "string") {
+          setMessages((current) => [...current.slice(-99), data as unknown as ChatMessage]);
         }
       });
       socket.addEventListener("close", () => {
@@ -152,24 +153,41 @@ export default function CollaborationPanel() {
       if (retry !== undefined) window.clearTimeout(retry);
       socketRef.current?.close(1000, "Collaboration panel unmounted");
       socketRef.current = null;
-      for (const pc of pcsRef.current.values()) pc.close();
-      pcsRef.current.clear();
-      for (const stream of streamsRef.current.values()) stream.getTracks().forEach((track) => track.stop());
-      streamsRef.current.clear();
     };
-  }, [makePeerConnection, sendSignal]);
+  }, [loadUsers]);
 
   useEffect(() => {
     let lastSent = 0;
     const handlePointer = (event: MouseEvent) => {
       const now = Date.now();
-      if (now - lastSent < 80) return;
+      if (now - lastSent < 65) return;
       lastSent = now;
-      send({ type: "cursor", x: event.clientX / Math.max(1, window.innerWidth), y: event.clientY / Math.max(1, window.innerHeight) });
+      send({ type: "cursor", x: event.clientX / Math.max(1, window.innerWidth), y: event.clientY / Math.max(1, window.innerHeight), deviceId: getDeviceId() });
     };
     window.addEventListener("mousemove", handlePointer, { passive: true });
     return () => window.removeEventListener("mousemove", handlePointer);
   }, [send]);
+
+  const requestJoin = (user: Peer) => {
+    setNotice("");
+    send({ type: "join-request", targetUserId: user.userId, deviceId: getDeviceId() });
+  };
+
+  const respondToJoin = (user: Peer, approved: boolean) => {
+    send({ type: "join-response", targetUserId: user.userId, approved, permission: permissionChoice[user.userId] ?? "view", deviceId: getDeviceId() });
+    setRequests((current) => current.filter((item) => item.userId !== user.userId));
+  };
+
+  const leaveSession = () => {
+    send({ type: "join-leave", deviceId: getDeviceId() });
+    setJoinedOwner(null);
+    window.dispatchEvent(new CustomEvent("utoolity:shared-session-ended"));
+  };
+
+  const setMemberPermission = (member: Member, permission: "view" | "editor") => {
+    send({ type: "shared-permission", targetUserId: member.userId, permission, deviceId: getDeviceId() });
+    setMembers((current) => current.map((item) => item.userId === member.userId ? { ...item, permission } : item));
+  };
 
   const sendChat = (event: FormEvent) => {
     event.preventDefault();
@@ -179,85 +197,86 @@ export default function CollaborationPanel() {
     setDraft("");
   };
 
-  const requestScreen = (user: Peer) => {
-    send({ type: "screen-share-request", targetUserId: user.userId, deviceId: getDeviceId() });
-  };
-
-  const shareScreen = async (user: Peer) => {
-    try {
-      const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
-      const pc = makePeerConnection(user.userId);
-      streamsRef.current.set(user.userId, stream);
-      stream.getTracks().forEach((track) => {
-        pc.addTrack(track, stream);
-        track.addEventListener("ended", () => {
-          pc.close();
-          pcsRef.current.delete(user.userId);
-          streamsRef.current.get(user.userId)?.getTracks().forEach((item) => item.stop());
-          streamsRef.current.delete(user.userId);
-          setSharingWith(null);
-        }, { once: true });
-      });
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-      sendSignal(user.userId, { type: "offer", description: offer });
-      setSharingWith(user.userId);
-    } catch (error) {
-      console.warn("Screen sharing was cancelled or unavailable", error);
-    }
-  };
-
   return (
-    <div className="fixed bottom-4 right-4 z-[100] select-none">
+    <>
       {Object.values(cursors).map((cursor) => (
-        <div key={cursor.userId} aria-hidden="true" className="pointer-events-none fixed z-[90] flex items-center gap-1.5 transition-[left,top] duration-75" style={{ left: `${cursor.x * 100}vw`, top: `${cursor.y * 100}vh` }}>
-          <span className="size-3 rounded-full border-2 border-white bg-primary shadow" />
+        <div key={cursor.userId} aria-hidden="true" className="pointer-events-none fixed z-[1100] flex items-center gap-1.5 transition-[left,top] duration-75" style={{ left: `${cursor.x * 100}vw`, top: `${cursor.y * 100}vh` }}>
+          <img src="/cursors/bibata-pointer.svg" alt="" className="h-7 w-7 object-contain drop-shadow-md" />
           <span className="rounded-md bg-primary px-2 py-1 text-[10px] font-semibold text-primary-foreground shadow">{cursor.displayName}</span>
         </div>
       ))}
-      {Object.entries(remoteStreams).map(([userId, stream]) => (
-        <RemoteScreen key={userId} stream={stream} name={peers.find((peer) => peer.userId === userId)?.displayName ?? "Collaborator"} />
-      ))}
       {open && (
-        <section className="mb-3 w-[min(22rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-border bg-card/95 text-card-foreground shadow-2xl backdrop-blur-xl">
+        <section className="fixed bottom-4 right-4 z-[1200] w-[min(27rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-border bg-card/95 text-card-foreground shadow-2xl backdrop-blur-xl">
           <header className="flex items-center justify-between border-b border-border px-4 py-3">
             <div className="flex items-center gap-2 text-sm font-semibold"><Users className="size-4" /> Collaboration <span className={connected ? "size-2 rounded-full bg-emerald-500" : "size-2 rounded-full bg-destructive"} /></div>
             <button type="button" aria-label="Close collaboration" onClick={() => setOpen(false)} className="rounded-lg p-1.5 hover:bg-muted"><X className="size-4" /></button>
           </header>
-          {shareRequests.length > 0 && (
+
+          {notice && <p role="status" className="border-b border-border px-4 py-2 text-xs text-muted-foreground">{notice}</p>}
+
+          {requests.length > 0 && (
             <div className="space-y-2 border-b border-border bg-primary/5 p-3">
-              {shareRequests.map((requester) => (
-                <div key={requester.userId} className="rounded-xl border border-border p-3">
-                  <p className="text-sm font-semibold">{requester.displayName} requested to view your screen.</p>
-                  <p className="mt-1 text-xs text-muted-foreground">Accepting opens the browser's screen-sharing permission prompt.</p>
-                  <div className="mt-2 flex gap-2">
-                    <button type="button" onClick={() => { setShareRequests((current) => current.filter((item) => item.userId !== requester.userId)); void shareScreen(requester); }} className="rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground">Share screen</button>
-                    <button type="button" onClick={() => setShareRequests((current) => current.filter((item) => item.userId !== requester.userId))} className="rounded-lg border border-border px-3 py-2 text-xs">Decline</button>
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Join requests</p>
+              {requests.map((request) => (
+                <div key={request.userId} className="rounded-xl border border-border p-3">
+                  <p className="text-sm font-semibold">{request.displayName} wants to join your desktop.</p>
+                  <div className="mt-3 flex items-center gap-2">
+                    <select aria-label={`Permission for ${request.displayName}`} value={permissionChoice[request.userId] ?? "view"} onChange={(event) => setPermissionChoice((current) => ({ ...current, [request.userId]: event.target.value as "view" | "editor" }))} className="min-w-0 flex-1 rounded-lg border border-border bg-background px-2 py-2 text-xs">
+                      <option value="view">View only</option>
+                      <option value="editor">Editor</option>
+                    </select>
+                    <button type="button" onClick={() => respondToJoin(request, true)} className="inline-flex items-center gap-1 rounded-lg bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground"><Check className="size-3.5" /> Allow</button>
+                    <button type="button" onClick={() => respondToJoin(request, false)} className="rounded-lg border border-border p-2" aria-label="Decline join request"><XCircle className="size-4" /></button>
                   </div>
                 </div>
               ))}
             </div>
           )}
+
+          {members.length > 0 && (
+            <div className="space-y-2 border-b border-border p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">In your session</p>
+              {members.map((member) => (
+                <div key={member.userId} className="flex items-center gap-2 rounded-lg border border-border/70 px-3 py-2">
+                  <span className="min-w-0 flex-1 truncate text-sm">{member.displayName}</span>
+                  <select aria-label={`Permission for ${member.displayName}`} value={member.permission} onChange={(event) => setMemberPermission(member, event.target.value as "view" | "editor")} className="rounded-lg border border-border bg-background px-2 py-1 text-xs">
+                    <option value="view">View only</option>
+                    <option value="editor">Editor</option>
+                  </select>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {joinedOwner && (
+            <div className="flex items-center justify-between border-b border-border bg-primary/5 px-4 py-3">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">Joined {joinedOwner.displayName}</p>
+                <p className="text-xs text-muted-foreground">{joinedOwner.permission === "editor" ? "Editor access" : "View only"}</p>
+              </div>
+              <button type="button" onClick={leaveSession} className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-1.5 text-xs"><LogOut className="size-3.5" /> Leave</button>
+            </div>
+          )}
+
           <div className="flex border-b border-border p-1">
-            <button type="button" onClick={() => setTab("people")} className={`flex-1 rounded-lg px-3 py-2 text-sm ${tab === "people" ? "bg-muted font-semibold" : "text-muted-foreground"}`}>People ({peers.length})</button>
+            <button type="button" onClick={() => setTab("people")} className={`flex-1 rounded-lg px-3 py-2 text-sm ${tab === "people" ? "bg-muted font-semibold" : "text-muted-foreground"}`}>Profiles ({users.length})</button>
             <button type="button" onClick={() => setTab("chat")} className={`flex-1 rounded-lg px-3 py-2 text-sm ${tab === "chat" ? "bg-muted font-semibold" : "text-muted-foreground"}`}>Chat</button>
           </div>
           {tab === "people" ? (
             <div className="max-h-64 space-y-2 overflow-y-auto p-3">
-              {peers.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No other users are connected.</p>}
-              {peers.map((peer, index) => (
-                <div key={`${peer.userId}-${index}`} className="flex items-center gap-3 rounded-xl border border-border/70 p-3">
-                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold">{peer.displayName.slice(0, 1).toUpperCase()}</div>
-                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{peer.displayName}</p><p className="text-xs capitalize text-muted-foreground">{peer.role}</p></div>
-                  {peer.role === "intern" && <button type="button" onClick={() => requestScreen(peer)} title="Request to view this screen" className="rounded-lg border border-border p-2 hover:bg-muted"><MonitorUp className="size-4" /></button>}
-                  <button type="button" onClick={() => void shareScreen(peer)} disabled={sharingWith === peer.userId} title="Share your screen with this user" className="rounded-lg border border-border p-2 hover:bg-muted disabled:opacity-50"><MonitorUp className="size-4" /></button>
+              {users.length === 0 && <p className="py-6 text-center text-sm text-muted-foreground">No configured profiles found.</p>}
+              {users.map((user) => (
+                <div key={user.userId} className="flex items-center gap-3 rounded-xl border border-border/70 p-3">
+                  <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold">{user.displayName.slice(0, 1).toUpperCase()}</div>
+                  <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{user.displayName}</p><p className="text-xs text-muted-foreground">{onlineUsers.has(user.userId) || user.online ? "Active now" : "Offline"}</p></div>
+                  <span className={`size-2 rounded-full ${onlineUsers.has(user.userId) || user.online ? "bg-emerald-500" : "bg-muted-foreground/35"}`} />
+                  <button type="button" onClick={() => requestJoin(user)} disabled={!connected || !(onlineUsers.has(user.userId) || user.online) || Boolean(joinedOwner)} title="Request to join this desktop" className="rounded-lg border border-border p-2 hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"><Eye className="size-4" /></button>
                 </div>
               ))}
-              {sharingWith && <p className="text-xs text-muted-foreground">Sharing your screen with {peers.find((peer) => peer.userId === sharingWith)?.displayName ?? "user"}.</p>}
-              <p className="px-1 text-xs text-muted-foreground">Screen sharing starts only after you select a user and approve the browser prompt.</p>
+              <p className="px-1 text-xs text-muted-foreground">The host must approve every join and chooses view-only or editor access.</p>
             </div>
           ) : (
-            <div className="flex h-72 flex-col">
+            <div className="flex h-64 flex-col">
               <div className="flex-1 space-y-2 overflow-y-auto p-3">
                 {messages.map((message) => <div key={message.id} className="rounded-xl bg-muted/70 px-3 py-2"><p className="text-xs font-semibold">{message.displayName}</p><p className="break-words text-sm">{message.text}</p></div>)}
                 {messages.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">No messages yet.</p>}
@@ -270,22 +289,6 @@ export default function CollaborationPanel() {
           )}
         </section>
       )}
-      <button type="button" onClick={() => setOpen((value) => !value)} className="ml-auto flex items-center gap-2 rounded-full border border-border bg-card px-4 py-3 text-sm font-semibold text-card-foreground shadow-xl hover:bg-muted">
-        <MessageCircle className="size-4" /> Collaborate <span className={connected ? "size-2 rounded-full bg-emerald-500" : "size-2 rounded-full bg-destructive"} />
-      </button>
-    </div>
-  );
-}
-
-function RemoteScreen({ stream, name }: { stream: MediaStream; name: string }) {
-  const videoRef = useRef<HTMLVideoElement>(null);
-  useEffect(() => {
-    if (videoRef.current) videoRef.current.srcObject = stream;
-  }, [stream]);
-  return (
-    <div className="mb-3 w-[min(28rem,calc(100vw-2rem))] overflow-hidden rounded-2xl border border-border bg-card shadow-2xl">
-      <div className="px-3 py-2 text-xs font-semibold">{name}'s screen</div>
-      <video ref={videoRef} autoPlay playsInline className="max-h-64 w-full bg-black object-contain" />
-    </div>
+    </>
   );
 }
