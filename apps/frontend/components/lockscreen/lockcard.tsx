@@ -184,23 +184,6 @@ function Lockcard({
         ?.trim();
       const configuredHostname = authenticatedUser?.hostname || savedHostname || "";
 
-      if (!authenticatedUser) {
-        try {
-          const cachedUser = window.localStorage.getItem("utoolity.cached-user");
-          if (cachedUser) {
-            const parsed = JSON.parse(cachedUser) as LockProfileResponse["user"];
-            if (parsed?.id && parsed.hostname && parsed.displayName) {
-              setProfile({ ...parsed, locked: true });
-              setHostname(parsed.hostname);
-              setLoadingProfile(false);
-              return;
-            }
-          }
-        } catch {
-          window.localStorage.removeItem("utoolity.cached-user");
-        }
-      }
-
       if (authenticatedUser) {
         window.localStorage.setItem("utoolity.cached-user", JSON.stringify(authenticatedUser));
         setProfile({ ...authenticatedUser, locked: true });
