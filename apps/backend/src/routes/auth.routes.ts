@@ -9,7 +9,7 @@ type InternUser = {
   displayName: string;
   password: string;
   macId: string;
-  role: "intern";
+  role: "intern" | "admin";
   preferences?: Record<string, string>;
 };
 
@@ -30,7 +30,7 @@ type PublicUser = Pick<
 type AuthSession = {
   userId?: string;
   deviceId?: string;
-  role?: "intern";
+  role?: "intern" | "admin";
   lastActivityAt?: number;
   save(callback: (error?: Error) => void): void;
   destroy(callback: (error?: Error) => void): void;
@@ -41,7 +41,7 @@ type SessionRecord = {
   hostname: string;
   displayName: string;
   deviceId: string;
-  role: "intern";
+  role: "intern" | "admin";
   active: boolean;
   activeApps: unknown[];
   lastActivityAt: number;
