@@ -274,7 +274,12 @@ export default function BoundingBoxStudio() {
           imageName: currentImage.name,
           imageWidth: imageDimensions.width,
           imageHeight: imageDimensions.height,
-          annotations: polygons,
+          annotations: polygons.map((polygon) => ({
+            ...polygon,
+            createdBy: polygon.createdBy ?? currentActorRef.current,
+            updatedBy: polygon.updatedBy ?? currentActorRef.current,
+            updatedAt: polygon.updatedAt ?? Date.now(),
+          })),
         },
       }));
     }, 90);
