@@ -213,8 +213,22 @@ export default function BoundingBoxStudio() {
       if (!payload || !Array.isArray(payload.annotations)) return;
       const localFolder = localStorage.getItem("utoolity.bounding-box.folder");
       if (payload.folderPath && localFolder && payload.folderPath !== localFolder) return;
-      if (!currentImage || selectedImageIndex === null) return;
-      if (payload.imageName && payload.imageName !== currentImage.name) return;
+      if (!payload.imageName || !payload.folderPath) return;
+      if (payload.imageName !== currentImage?.name) {
+        const folder = localStorage.getItem("utoolity.bounding-box.folder");
+        if (!folder || folder !== payload.folderPath) return;
+        const imageIndex = images.findIndex((image) => image.name === payload.imageName);
+        if (imageIndex < 0) return;
+        setSelectedImageIndex(imageIndex);
+        setImageDimensions({
+          width: typeof payload.imageWidth === "number" ? payload.imageWidth : imageDimensions.width,
+          height: typeof payload.imageHeight === "number" ? payload.imageHeight : imageDimensions.height,
+        });
+        suppressAnnotationSyncRef.current = true;
+        loadAnnotations(payload.annotations);
+        return;
+      }
+      if (selectedImageIndex === null) return;
       suppressAnnotationSyncRef.current = true;
       if (typeof payload.imageWidth === "number" && typeof payload.imageHeight === "number") {
         setImageDimensions({ width: payload.imageWidth, height: payload.imageHeight });
@@ -232,7 +246,7 @@ export default function BoundingBoxStudio() {
       window.removeEventListener("utoolity:annotation-state", receiveRemoteAnnotations);
       if (remoteWriteTimerRef.current) clearTimeout(remoteWriteTimerRef.current);
     };
-  }, [currentImage, selectedImageIndex, loadAnnotations, saveAnnotations, polygons]);
+  }, [currentImage, selectedImageIndex, loadAnnotations, saveAnnotations, polygons, images, imageDimensions]);
 
   useEffect(() => {
     if (!annotationsLoaded || !currentImage || selectedImageIndex === null) return;
