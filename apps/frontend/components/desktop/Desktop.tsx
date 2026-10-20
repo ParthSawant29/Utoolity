@@ -164,40 +164,44 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
 
   useEffect(() => {
     const applySharedSession = (event: Event) => {
-      const detail = (event as CustomEvent<{ ownerUserId?: string; permission?: "view" | "editor"; workspace?: { openApps?: typeof openApps; activeAppKey?: string | null; context?: Record<string, unknown>; theme?: string; preferences?: Record<string, string> } }>).detail;
+      const detail = (event as CustomEvent<{ ownerUserId?: string; permission?: "view" | "editor"; workspace?: { openApps?: typeof openApps; activeAppKey?: string | null; context?: Record<string, unknown> } }>).detail;
       if (!detail?.ownerUserId) return;
       setSharedOwnerUserId(detail.ownerUserId);
       setSharedPermission(detail.permission === "editor" ? "editor" : "view");
-      if (detail.workspace?.context && typeof detail.workspace.context === "object") {
-        const context = detail.workspace.context as { boundingBoxFolder?: unknown };
-        if (typeof context.boundingBoxFolder === "string" && context.boundingBoxFolder) {
-          localStorage.setItem("utoolity.bounding-box.folder", context.boundingBoxFolder);
-          localStorage.setItem("utoolity.polygon.folder", context.boundingBoxFolder);
-          window.dispatchEvent(new CustomEvent("utoolity:shared-folder-changed", { detail: { path: context.boundingBoxFolder } }));
+      const workspace = detail.workspace;
+      if (workspace?.context && typeof workspace.context === "object") {
+        const boundingBoxFolder = workspace.context.boundingBoxFolder;
+        const polygonFolder = workspace.context.polygonFolder;
+        if (typeof boundingBoxFolder === "string" && boundingBoxFolder) {
+          localStorage.setItem("utoolity.bounding-box.folder", boundingBoxFolder);
+          window.dispatchEvent(new CustomEvent("utoolity:shared-folder-changed", { detail: { path: boundingBoxFolder } }));
         }
+        if (typeof polygonFolder === "string" && polygonFolder) localStorage.setItem("utoolity.polygon.folder", polygonFolder);
       }
-      if (Array.isArray(detail.workspace?.openApps)) {
-        const next = detail.workspace.openApps.filter((item) => item && typeof item.app === "string") as typeof openApps;
+      if (Array.isArray(workspace?.openApps)) {
+        const next = workspace.openApps.filter((item) => item && typeof item.app === "string") as typeof openApps;
         setOpenApps(next);
-        setActiveAppKey(typeof detail.workspace.activeAppKey === "string" ? detail.workspace.activeAppKey : next.at(-1) ? `${next.at(-1)?.app}:${next.at(-1)?.filePath ?? ""}` : null);
+        setActiveAppKey(typeof workspace.activeAppKey === "string" ? workspace.activeAppKey : next.at(-1) ? `${next.at(-1)?.app}:${next.at(-1)?.filePath ?? ""}` : null);
       }
       setWorkspaceHydrated(true);
     };
     const applySharedWorkspace = (event: Event) => {
-      const detail = (event as CustomEvent<{ ownerUserId?: string; workspace?: { openApps?: typeof openApps } }>).detail;
+      const detail = (event as CustomEvent<{ ownerUserId?: string; workspace?: { openApps?: typeof openApps; activeAppKey?: string | null; context?: Record<string, unknown> } }>).detail;
       if (!detail?.workspace || (sharedOwnerUserId && detail.ownerUserId !== sharedOwnerUserId)) return;
-      if (detail.workspace.context && typeof detail.workspace.context === "object") {
-        const context = detail.workspace.context as { boundingBoxFolder?: unknown };
-        if (typeof context.boundingBoxFolder === "string" && context.boundingBoxFolder) {
-          localStorage.setItem("utoolity.bounding-box.folder", context.boundingBoxFolder);
-          localStorage.setItem("utoolity.polygon.folder", context.boundingBoxFolder);
-          window.dispatchEvent(new CustomEvent("utoolity:shared-folder-changed", { detail: { path: context.boundingBoxFolder } }));
+      const workspace = detail.workspace;
+      if (workspace.context && typeof workspace.context === "object") {
+        const boundingBoxFolder = workspace.context.boundingBoxFolder;
+        const polygonFolder = workspace.context.polygonFolder;
+        if (typeof boundingBoxFolder === "string" && boundingBoxFolder) {
+          localStorage.setItem("utoolity.bounding-box.folder", boundingBoxFolder);
+          window.dispatchEvent(new CustomEvent("utoolity:shared-folder-changed", { detail: { path: boundingBoxFolder } }));
         }
+        if (typeof polygonFolder === "string" && polygonFolder) localStorage.setItem("utoolity.polygon.folder", polygonFolder);
       }
-      if (Array.isArray(detail.workspace.openApps)) {
-        const next = detail.workspace.openApps.filter((item) => item && typeof item.app === "string") as typeof openApps;
+      if (Array.isArray(workspace.openApps)) {
+        const next = workspace.openApps.filter((item) => item && typeof item.app === "string") as typeof openApps;
         setOpenApps(next);
-        setActiveAppKey(typeof detail.workspace.activeAppKey === "string" ? detail.workspace.activeAppKey : next.at(-1) ? `${next.at(-1)?.app}:${next.at(-1)?.filePath ?? ""}` : null);
+        setActiveAppKey(typeof workspace.activeAppKey === "string" ? workspace.activeAppKey : next.at(-1) ? `${next.at(-1)?.app}:${next.at(-1)?.filePath ?? ""}` : null);
       }
     };
     const applyPermission = (event: Event) => {
