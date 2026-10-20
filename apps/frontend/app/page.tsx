@@ -184,7 +184,7 @@ export default function Home() {
       }
 
       try {
-        const response = await api<{ user: { id: string; hostname: string; displayName: string; role?: "intern" } }>("/api/auth/me");
+        const response = await api<{ user: { id: string; hostname: string; displayName: string; role?: "intern" | "admin" } }>("/api/auth/me");
         if (!active) return;
 
         const nextUserId = response.user.id;
@@ -338,7 +338,7 @@ export default function Home() {
   };
 
   return (
-    <div className="relative isolate h-dvh min-h-dvh overflow-hidden bg-background font-sans text-foreground">
+    <div className="relative isolate h-dvh min-h-dvh overflow-hidden font-sans text-foreground">
       {shellState === "checking" ? (
         <div
           className="flex min-h-screen items-center justify-center bg-background"
