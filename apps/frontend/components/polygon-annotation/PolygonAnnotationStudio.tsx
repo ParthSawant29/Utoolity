@@ -129,8 +129,16 @@ export default function PolygonAnnotationPage() {
       const path = detail.path;
       if (path) void loadFolder(path).catch(() => undefined);
     };
+    const handleSharedFolderChanged = (event: Event) => {
+      const detail = (event as CustomEvent<{ path?: string }>).detail;
+      if (detail?.path) void loadFolder(detail.path).catch(() => undefined);
+    };
     window.addEventListener("utoolity:polygon-folder-selected", handleFolderSelected);
-    return () => window.removeEventListener("utoolity:polygon-folder-selected", handleFolderSelected);
+    window.addEventListener("utoolity:shared-folder-changed", handleSharedFolderChanged);
+    return () => {
+      window.removeEventListener("utoolity:polygon-folder-selected", handleFolderSelected);
+      window.removeEventListener("utoolity:shared-folder-changed", handleSharedFolderChanged);
+    };
   }, []);
 
   const currentImage =
