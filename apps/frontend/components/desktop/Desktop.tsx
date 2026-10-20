@@ -237,6 +237,14 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
           localStorage.setItem("utoolity.bounding-box.folder", workspace.context.boundingBoxFolder);
           localStorage.setItem("utoolity.polygon.folder", workspace.context.boundingBoxFolder);
         }
+        window.dispatchEvent(new CustomEvent("utoolity:collaboration-audit", {
+          detail: {
+            actorUserId: detail.fromUserId,
+            actorDisplayName: detail.fromDisplayName,
+            action: "workspace",
+            target: "desktop",
+          },
+        }));
       }
     };
     window.addEventListener("utoolity:shared-session-changed", applySharedSession);
