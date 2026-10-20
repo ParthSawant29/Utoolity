@@ -27,6 +27,7 @@ type LockProfileResponse = {
     displayName: string;
     role: "intern" | "admin";
   };
+  requiresDeviceId?: boolean;
 };
 type UnlockResponse = {
   success: boolean;
@@ -73,6 +74,7 @@ function Lockcard({
   const now = useClock();
   const [profile, setProfile] = useState<LockProfile | null>(null);
   const [hostname, setHostname] = useState("");
+  const [deviceIdInput, setDeviceIdInput] = useState("");
   const [password, setPassword] = useState("");
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [checking, setChecking] = useState(false);
@@ -153,19 +155,18 @@ function Lockcard({
         const response = await api<LockProfileResponse>(profilePath);
         resolvedUser = response.user;
         if (!active) return;
+        if (!resolvedUser && response.requiresDeviceId) {
+          setProfile(null);
+          setHostname("");
+          setDeviceIdInput("");
+          setError("");
+          return;
+        }
         if (!resolvedUser) throw new Error("The backend returned an empty profile.");
 
-        // Guest is a valid profile for a fresh/unconfigured device. Do not cache it
-        // as the authenticated user; the next account assignment must resolve afresh.
-        if (resolvedUser.id === "guest-intern") {
-          window.localStorage.removeItem("utoolity.cached-user");
-          window.localStorage.removeItem("utoolity.authenticated-user-id");
-          window.localStorage.removeItem(HOSTNAME_STORAGE_KEY);
-        } else {
-          window.localStorage.setItem("utoolity.cached-user", JSON.stringify(resolvedUser));
-          window.localStorage.setItem("utoolity.authenticated-user-id", resolvedUser.id);
-          window.localStorage.setItem(HOSTNAME_STORAGE_KEY, resolvedUser.hostname);
-        }
+        window.localStorage.setItem("utoolity.cached-user", JSON.stringify(resolvedUser));
+        window.localStorage.setItem("utoolity.authenticated-user-id", resolvedUser.id);
+        window.localStorage.setItem(HOSTNAME_STORAGE_KEY, resolvedUser.hostname);
         setProfile({ ...resolvedUser, locked: true });
         setHostname(resolvedUser.hostname);
         setError("");
@@ -246,6 +247,33 @@ function Lockcard({
       clearInactivityTimer();
     };
   }, [clearInactivityTimer, lockscreenState, profile, startInactivityTimer]);
+  const handleDeviceIdSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const enteredDeviceId = deviceIdInput.trim();
+    if (!enteredDeviceId || checking || loadingProfile) return;
+    setChecking(true);
+    setError("");
+    try {
+      const response = await api<LockProfileResponse>(
+        `/api/lockscreen/me?hostname=${encodeURIComponent(enteredDeviceId)}`,
+      );
+      if (!response.user) {
+        setError("Device ID was not found. Check it with your administrator.");
+        return;
+      }
+      window.localStorage.setItem(HOSTNAME_STORAGE_KEY, response.user.hostname);
+      window.localStorage.setItem("utoolity.device-id", response.user.hostname);
+      window.localStorage.setItem("utoolity.cached-user", JSON.stringify(response.user));
+      window.localStorage.setItem("utoolity.authenticated-user-id", response.user.id);
+      setHostname(response.user.hostname);
+      setProfile({ ...response.user, locked: true });
+      setDeviceIdInput("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to verify this device ID.");
+    } finally {
+      setChecking(false);
+    }
+  };
   const handleUnlock = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const assignedHostname = (hostname || profile?.hostname || "").trim();
@@ -352,7 +380,36 @@ function Lockcard({
               ? "Loading profile..."
               : profile?.displayName ?? "Assigned workstation"}
           </h1>
-          {isLocked && lockscreenState === "locked" ? (
+          {!loadingProfile && !profile ? (
+            <form
+              onSubmit={handleDeviceIdSubmit}
+              className="mt-8 flex w-full max-w-sm flex-col items-center"
+            >
+              <p className="mb-4 text-sm font-medium tracking-wide text-white/80">
+                Enter your assigned device ID
+              </p>
+              <input
+                aria-label="Device ID"
+                type="text"
+                value={deviceIdInput}
+                onChange={(event) => setDeviceIdInput(event.target.value)}
+                placeholder="e.g. wraith-os"
+                autoComplete="off"
+                autoCapitalize="none"
+                spellCheck={false}
+                disabled={checking}
+                className="w-full rounded-2xl border border-white/20 bg-black/25 px-5 py-4 text-center text-lg text-white outline-none backdrop-blur-sm placeholder:text-white/45 focus:border-white/50 focus:ring-2 focus:ring-white/20 disabled:opacity-50"
+              />
+              <button
+                type="submit"
+                disabled={checking || !deviceIdInput.trim()}
+                className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {checking ? "Checking..." : "Use this device"}
+              </button>
+              {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
+            </form>
+          ) : isLocked && lockscreenState === "locked" ? (
             <form
               onSubmit={handleUnlock}
               className="mt-8 flex w-full max-w-sm flex-col items-center"
