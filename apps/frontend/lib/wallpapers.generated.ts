@@ -5,55 +5,59 @@ export const GENERATED_WALLPAPERS: readonly Wallpaper[] = [
     "id": "Default",
     "name": "Default",
     "kind": "image",
-    "url": "/wallpapers/Default/light.jpg",
-    "darkUrl": "/wallpapers/Default/dark.jpg",
-    "lightUrl": "/wallpapers/Default/light.jpg"
+    "url": "/wallpapers/Default/light.png",
+    "darkUrl": "/wallpapers/Default/dark.png",
+    "lightUrl": "/wallpapers/Default/light.png"
   },
   {
-    "id": "Gradient",
-    "name": "Gradient",
+    "id": "Desert",
+    "name": "Desert",
     "kind": "image",
-    "url": "/wallpapers/Gradient/light.jpg",
-    "darkUrl": "/wallpapers/Gradient/dark.png",
-    "lightUrl": "/wallpapers/Gradient/light.jpg"
+    "url": "/wallpapers/Desert/light.png",
+    "darkUrl": "/wallpapers/Desert/dark.png",
+    "lightUrl": "/wallpapers/Desert/light.png"
   },
   {
-    "id": "Jungle",
-    "name": "Jungle",
+    "id": "Lakeside",
+    "name": "Lakeside",
     "kind": "image",
-    "url": "/wallpapers/Jungle/light.jpg",
-    "darkUrl": "/wallpapers/Jungle/light.jpg",
-    "lightUrl": "/wallpapers/Jungle/light.jpg"
+    "url": "/wallpapers/Lakeside/light.png",
+    "darkUrl": "/wallpapers/Lakeside/dark.png",
+    "lightUrl": "/wallpapers/Lakeside/light.png"
   },
   {
-    "id": "Live/abstract.mp4",
-    "name": "Abstract",
+    "id": "Live/Blossom.mp4",
+    "name": "Blossom",
     "kind": "live",
-    "url": "/wallpapers/Live/abstract.mp4"
+    "url": "/wallpapers/Live/Blossom.mp4"
   },
   {
-    "id": "Live/code_fall.mp4",
-    "name": "Code Fall",
+    "id": "Live/Cyber.mp4",
+    "name": "Cyber",
     "kind": "live",
-    "url": "/wallpapers/Live/code_fall.mp4"
+    "url": "/wallpapers/Live/Cyber.mp4"
   },
   {
-    "id": "Live/oceanic.mp4",
-    "name": "Oceanic",
+    "id": "Live/Islands.mp4",
+    "name": "Islands",
     "kind": "live",
-    "url": "/wallpapers/Live/oceanic.mp4"
+    "url": "/wallpapers/Live/Islands.mp4"
   },
   {
-    "id": "Live/pins.mp4",
-    "name": "Pins",
-    "kind": "live",
-    "url": "/wallpapers/Live/pins.mp4"
+    "id": "Rancho",
+    "name": "Rancho",
+    "kind": "image",
+    "url": "/wallpapers/Rancho/light.png",
+    "darkUrl": "/wallpapers/Rancho/dark.png",
+    "lightUrl": "/wallpapers/Rancho/light.png"
   },
   {
-    "id": "Live/polished.mp4",
-    "name": "Polished",
-    "kind": "live",
-    "url": "/wallpapers/Live/polished.mp4"
+    "id": "Sands",
+    "name": "Sands",
+    "kind": "image",
+    "url": "/wallpapers/Sands/light.png",
+    "darkUrl": "/wallpapers/Sands/dark.png",
+    "lightUrl": "/wallpapers/Sands/light.png"
   }
 ];
 export const GENERATED_DEFAULT_WALLPAPER_ID = "Default";

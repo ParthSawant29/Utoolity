@@ -99,7 +99,7 @@ export default function DesktopContextMenu({
   const menuItems = items.map((item) =>
     "divider" in item || item.action !== "theme"
       ? item
-      : { ...item, label: isDark ? "Switch to light mode" : "Switch to dark mode" },
+      : { ...item, label: isDark ? "Switch to Day mode" : "Switch to Night Mode" },
   );
 
   return (
