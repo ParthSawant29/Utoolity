@@ -571,49 +571,6 @@ export default async function authRoutes(app: FastifyInstance) {
     const resetInactivityTimer = () => {
       if (deviceId === "pending-device") return;
 
-      if (message.type === "chat") {
-        if (typeof message.text !== "string" || !message.text.trim()) return;
-        const text = message.text.trim().slice(0, 2000);
-        broadcastCollaboration(JSON.stringify({
-          type: "chat",
-          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
-          userId,
-          displayName: client.displayName,
-          text,
-          timestamp: Date.now(),
-          roomId: typeof message.roomId === "string" ? message.roomId.slice(0, 128) : "global",
-        }));
-        return;
-      }
-
-      if (message.type === "cursor") {
-        if (typeof message.x !== "number" || typeof message.y !== "number") return;
-        broadcastCollaboration(JSON.stringify({
-          type: "cursor",
-          userId,
-          displayName: client.displayName,
-          x: Math.max(0, Math.min(1, message.x)),
-          y: Math.max(0, Math.min(1, message.y)),
-          timestamp: Date.now(),
-        }), clientKey);
-        return;
-      }
-
-      if (message.type === "screen-share-signal") {
-        if (typeof message.targetUserId !== "string") return;
-        const forwarded = JSON.stringify({
-          type: "screen-share-signal",
-          fromUserId: userId,
-          fromDisplayName: client.displayName,
-          payload: message.payload,
-        });
-        for (const target of collaborationClients.values()) {
-          if (target.userId === message.targetUserId && target.socket.readyState === 1) {
-            target.socket.send(forwarded);
-          }
-        }
-        return;
-      }
       const timerKey = `${userId}:${deviceId}`;
       const existingTimer = deviceInactivityTimers.get(timerKey);
       if (existingTimer) clearTimeout(existingTimer);
@@ -677,6 +634,49 @@ export default async function authRoutes(app: FastifyInstance) {
       }
       if (deviceId === "pending-device") return;
 
+      if (message.type === "chat") {
+        if (typeof message.text !== "string" || !message.text.trim()) return;
+        const text = message.text.trim().slice(0, 2000);
+        broadcastCollaboration(JSON.stringify({
+          type: "chat",
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          userId,
+          displayName: client.displayName,
+          text,
+          timestamp: Date.now(),
+          roomId: typeof message.roomId === "string" ? message.roomId.slice(0, 128) : "global",
+        }));
+        return;
+      }
+
+      if (message.type === "cursor") {
+        if (typeof message.x !== "number" || typeof message.y !== "number") return;
+        broadcastCollaboration(JSON.stringify({
+          type: "cursor",
+          userId,
+          displayName: client.displayName,
+          x: Math.max(0, Math.min(1, message.x)),
+          y: Math.max(0, Math.min(1, message.y)),
+          timestamp: Date.now(),
+        }), clientKey);
+        return;
+      }
+
+      if (message.type === "screen-share-signal") {
+        if (typeof message.targetUserId !== "string") return;
+        const forwarded = JSON.stringify({
+          type: "screen-share-signal",
+          fromUserId: userId,
+          fromDisplayName: client.displayName,
+          payload: message.payload,
+        });
+        for (const target of collaborationClients.values()) {
+          if (target.userId === message.targetUserId && target.socket.readyState === 1) {
+            target.socket.send(forwarded);
+          }
+        }
+        return;
+      }
       if (
         message.type === "workspace" &&
         typeof message.workspace === "object" &&
