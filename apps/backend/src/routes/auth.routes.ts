@@ -2,6 +2,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { hostname as getSystemHostname } from "node:os";
 
 type InternUser = {
   id: string;
@@ -763,12 +764,14 @@ export default async function authRoutes(app: FastifyInstance) {
     try {
       const users = await readUsers();
       const deviceId = getDeviceId(request, "");
+      const systemHostname = (process.env.UTOOLITY_HOSTNAME || getSystemHostname()).trim();
       let user: InternUser | undefined;
 
       if (deviceId) {
         user = users.find((candidate) => candidate.deviceId === deviceId);
       }
 
+      if (!user && systemHostname) user = findByHostname(users, systemHostname);
       if (!user && hostname) user = findByHostname(users, hostname);
 
       if (!user && deviceId) {
