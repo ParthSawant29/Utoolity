@@ -735,6 +735,11 @@ export default async function authRoutes(app: FastifyInstance) {
           socket.send(JSON.stringify({ type: "join-request-result", targetUserId: message.targetUserId, status: "offline" }));
           return;
         }
+        const existingOwner = [...collaborationClients.values()].find((target) => target.userId === message.targetUserId && target.socket.readyState === 1);
+        if (existingOwner?.joinedOwnerUserId || sharedSessions.has(message.targetUserId)) {
+          socket.send(JSON.stringify({ type: "join-request-result", targetUserId: message.targetUserId, status: "target-in-session" }));
+          return;
+        }
         pendingJoinRequests.set(`${message.targetUserId}:${userId}`, clientKey);
         sendToUser(message.targetUserId, {
           type: "join-request",
