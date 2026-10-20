@@ -14,13 +14,6 @@ import {
 } from "lucide-react";
 import { api, ApiError } from "../../lib/api";
 import { useClock } from "../shared/useClock";
-import {
-  DEFAULT_WALLPAPER_ID,
-  getWallpaper,
-  getWallpaperUrl,
-  readWallpaperPreference,
-  WALLPAPERS,
-} from "../../lib/wallpapers";
 type LockProfile = {
   id: string;
   hostname: string;
@@ -85,8 +78,6 @@ function Lockcard({
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
   const [fullscreen, setFullscreen] = useState(false);
-  const [wallpaperUrl, setWallpaperUrl] = useState<string | null>(null);
-  const [wallpaperVisible, setWallpaperVisible] = useState(false);
   const [authenticated, setAuthenticated] = useState<boolean | null>(
     initialAuthenticated,
   );
@@ -119,44 +110,6 @@ function Lockcard({
     }, 350);
   }, [leaving, onUnlock]);
   useEffect(() => {
-    const applyWallpaper = () => {
-      const root = document.documentElement;
-      const selected = getWallpaper(readWallpaperPreference());
-      const fallback = getWallpaper(DEFAULT_WALLPAPER_ID);
-      const wallpaper = selected.kind === "image"
-        ? selected
-        : WALLPAPERS.find((item) => item.id === DEFAULT_WALLPAPER_ID && item.kind === "image") ??
-          WALLPAPERS.find((item) => item.kind === "image") ??
-          fallback;
-      const theme = root.classList.contains("dark") ? "dark" : "light";
-      root.dataset.wallpaper = selected.id;
-      setWallpaperUrl(
-        wallpaper.kind === "image" ? getWallpaperUrl(wallpaper, theme) : null,
-      );
-    };
-
-    applyWallpaper();
-    window.addEventListener("utoolity:wallpaper-changed", applyWallpaper);
-    window.addEventListener("storage", applyWallpaper);
-    const observer = new MutationObserver(applyWallpaper);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ["class"],
-    });
-
-    return () => {
-      window.removeEventListener("utoolity:wallpaper-changed", applyWallpaper);
-      window.removeEventListener("storage", applyWallpaper);
-      observer.disconnect();
-    };
-  }, []);
-  useEffect(() => {
-    if (!wallpaperUrl) return;
-    setWallpaperVisible(false);
-    const frame = window.requestAnimationFrame(() => setWallpaperVisible(true));
-    return () => window.cancelAnimationFrame(frame);
-  }, [wallpaperUrl]);
-  useEffect(() => {
     let active = true;
 
     async function loadProfile() {
@@ -177,9 +130,22 @@ function Lockcard({
       const configuredHostname = savedHostname || "";
 
       setHostname(configuredHostname);
+      // Cached profile is a display hint only. Use it immediately to avoid
+      // flashing Guest, then refresh the assignment from the backend.
+      const cachedProfileRaw = window.localStorage.getItem("utoolity.cached-user");
+      if (cachedProfileRaw) {
+        try {
+          const cached = JSON.parse(cachedProfileRaw) as LockProfileResponse["user"];
+          if (cached?.id && cached.hostname && cached.displayName) {
+            setProfile({ ...cached, locked: true });
+            setHostname(cached.hostname);
+          }
+        } catch {
+          window.localStorage.removeItem("utoolity.cached-user");
+        }
+      }
       try {
-        // api() sends the persistent X-Utoolity-Device-Id header.
-        // Prefer the device assignment and retain saved-hostname compatibility.
+        // api() sends the stable device ID. The backend remains authoritative.
         let resolvedUser: LockProfileResponse["user"];
         try {
           const response = await api<LockProfileResponse>("/api/lockscreen/me");
@@ -209,19 +175,11 @@ function Lockcard({
         setError("");
       } catch (cause) {
         if (!active) return;
-        console.warn("Lock-screen profile lookup failed; showing guest fallback.", cause);
-        // Keep the lock screen usable for an unconfigured device during a
-        // transient profile lookup failure. The backend remains authoritative
-        // when the password is submitted.
-        const guest: NonNullable<LockProfileResponse["user"]> = {
-          id: "guest-intern",
-          hostname: "guest-intern",
-          displayName: "Guest Intern",
-          role: "intern",
-        };
-        setProfile({ ...guest, locked: true });
-        setHostname(guest.hostname);
-        setError("Guest mode — connect to the backend to authenticate.");
+        console.warn("Lock-screen profile lookup failed; preserving cached profile if available.", cause);
+        // Never turn a transport/server error into a fake Guest assignment.
+        // Guest is shown only when the backend explicitly resolves Guest.
+        setProfile((current) => current ?? null);
+        setError("Unable to verify this device profile. Check the backend connection.");
       } finally {
         if (active) setLoadingProfile(false);
       }
@@ -350,33 +308,21 @@ function Lockcard({
     <section
       ref={cardRef}
       _aria-label_="Lock screen"
-      className={`lockscreen-shell lockscreen-wallpaper relative isolate flex h-full min-h-dvh w-full flex-col items-center justify-center overflow-hidden rounded-xl text-foreground ${
+      className={`lockscreen-shell relative isolate flex h-full min-h-dvh w-full flex-col items-center justify-center overflow-hidden rounded-xl text-foreground ${
         leaving ? "lockscreen-exit" : "lockscreen-enter"
       }`}
     >
-      {wallpaperUrl && (
-        <div
-          _aria-hidden_="true"
-          className={`absolute inset-0 z-0 bg-cover bg-center transition-opacity duration-700 ease-out ${
-            wallpaperVisible ? "opacity-100" : "opacity-0"
-          }`}
-          style={{ backgroundImage: `url("${wallpaperUrl}")` }}
-        />
-      )}
-      <div _aria-hidden_="true" className="lockscreen-orb lockscreen-orb-one" />
-      <div _aria-hidden_="true" className="lockscreen-orb lockscreen-orb-two" />
-      <div _aria-hidden_="true" className="lockscreen-orb lockscreen-orb-three" />
       <button
         type="button"
         onClick={toggleFullscreen}
         onPointerDown={(event) => event.stopPropagation()}
         onKeyDown={(event) => event.stopPropagation()}
         _aria-label_={fullscreen ? "Exit fullscreen" : "Enter fullscreen"}
-        className="absolute top-5 right-5 z-20 rounded-full border border-border/60 bg-card/50 p-3 text-foreground/70 backdrop-blur-xl transition hover:bg-card hover:text-foreground"
+        className="absolute top-5 right-5 z-20 rounded-full border border-white/20 bg-black/20 p-3 text-white/80 backdrop-blur-2xl transition hover:bg-black/35 hover:text-white"
       >
         <Maximize className="size-4" />
       </button>
-      <div className="relative z-10 flex w-full max-w-3xl flex-col items-center px-5 py-12 text-center">
+      <div className="lockscreen-frost-panel relative z-10 flex w-full max-w-3xl flex-col items-center px-5 py-12 text-center">
         <p className="text-xl font-bold tracking-[0.24em] text-background/80">
           {getGreeting(now)}
         </p>
