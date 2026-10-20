@@ -90,6 +90,28 @@ let sessionUpdateQueue: Promise<void> = Promise.resolve();
 let workspaceUpdateQueue: Promise<void> = Promise.resolve();
 const deviceInactivityTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
+type CollaborationClient = {
+  socket: { readyState: number; send(data: string): void };
+  userId: string;
+  displayName: string;
+  role: string;
+};
+const collaborationClients = new Map<string, CollaborationClient>();
+function broadcastPresence(): void {
+  const users = [...collaborationClients.values()].map(({ userId, displayName, role }) => ({
+    userId, displayName, role,
+  }));
+  const payload = JSON.stringify({ type: "presence", users });
+  for (const client of collaborationClients.values()) {
+    if (client.socket.readyState === 1) client.socket.send(payload);
+  }
+}
+function broadcastCollaboration(payload: string, exceptKey?: string): void {
+  for (const [key, client] of collaborationClients) {
+    if (key !== exceptKey && client.socket.readyState === 1) client.socket.send(payload);
+  }
+}
+
 function getDeviceId(request: FastifyRequest, fallback: string): string {
   const candidate = request.headers["x-utoolity-device-id"];
   if (typeof candidate === "string" && /^[a-zA-Z0-9._:-]{8,128}$/.test(candidate)) {
@@ -502,6 +524,23 @@ export default async function authRoutes(app: FastifyInstance) {
 
     const session = getSession(request);
     let deviceId = session.deviceId ?? "pending-device";
+    const clientKey = `${userId}:${Date.now()}:${Math.random().toString(36).slice(2)}`;
+    const client: CollaborationClient = {
+      socket,
+      userId,
+      displayName: userId,
+      role: session.role ?? "intern",
+    };
+    collaborationClients.set(clientKey, client);
+    void readUsers().then((users) => {
+      const user = findById(users, userId);
+      if (user) {
+        client.displayName = user.displayName;
+        client.role = user.role;
+      }
+      broadcastPresence();
+    }).catch((error) => request.log.warn({ err: error }, "Unable to resolve collaboration profile"));
+    broadcastPresence();
 
     const persistActivity = async (active: boolean) => {
       try {
@@ -531,6 +570,50 @@ export default async function authRoutes(app: FastifyInstance) {
 
     const resetInactivityTimer = () => {
       if (deviceId === "pending-device") return;
+
+      if (message.type === "chat") {
+        if (typeof message.text !== "string" || !message.text.trim()) return;
+        const text = message.text.trim().slice(0, 2000);
+        broadcastCollaboration(JSON.stringify({
+          type: "chat",
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          userId,
+          displayName: client.displayName,
+          text,
+          timestamp: Date.now(),
+          roomId: typeof message.roomId === "string" ? message.roomId.slice(0, 128) : "global",
+        }));
+        return;
+      }
+
+      if (message.type === "cursor") {
+        if (typeof message.x !== "number" || typeof message.y !== "number") return;
+        broadcastCollaboration(JSON.stringify({
+          type: "cursor",
+          userId,
+          displayName: client.displayName,
+          x: Math.max(0, Math.min(1, message.x)),
+          y: Math.max(0, Math.min(1, message.y)),
+          timestamp: Date.now(),
+        }), clientKey);
+        return;
+      }
+
+      if (message.type === "screen-share-signal") {
+        if (typeof message.targetUserId !== "string") return;
+        const forwarded = JSON.stringify({
+          type: "screen-share-signal",
+          fromUserId: userId,
+          fromDisplayName: client.displayName,
+          payload: message.payload,
+        });
+        for (const target of collaborationClients.values()) {
+          if (target.userId === message.targetUserId && target.socket.readyState === 1) {
+            target.socket.send(forwarded);
+          }
+        }
+        return;
+      }
       const timerKey = `${userId}:${deviceId}`;
       const existingTimer = deviceInactivityTimers.get(timerKey);
       if (existingTimer) clearTimeout(existingTimer);
@@ -554,12 +637,28 @@ export default async function authRoutes(app: FastifyInstance) {
     };
 
     socket.on("message", (raw: Buffer | ArrayBuffer | Buffer[]) => {
-      let message: { type?: unknown; deviceId?: unknown; workspace?: unknown };
+      let message: {
+        type?: unknown;
+        deviceId?: unknown;
+        workspace?: unknown;
+        text?: unknown;
+        targetUserId?: unknown;
+        payload?: unknown;
+        x?: unknown;
+        y?: unknown;
+        roomId?: unknown;
+      };
       try {
         message = JSON.parse(raw.toString()) as {
           type?: unknown;
           deviceId?: unknown;
           workspace?: unknown;
+          text?: unknown;
+          targetUserId?: unknown;
+          payload?: unknown;
+          x?: unknown;
+          y?: unknown;
+          roomId?: unknown;
         };
       } catch {
         return;
@@ -616,6 +715,8 @@ export default async function authRoutes(app: FastifyInstance) {
     });
 
     socket.on("close", () => {
+      collaborationClients.delete(clientKey);
+      broadcastPresence();
       // Keep the device active during transient reconnects; mark it inactive only
       // after the shared per-device inactivity timer expires.
       resetInactivityTimer();
