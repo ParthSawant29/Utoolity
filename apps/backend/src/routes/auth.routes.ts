@@ -867,6 +867,22 @@ export default async function authRoutes(app: FastifyInstance) {
         return;
       }
 
+      if (message.type === "shared-workspace-state") {
+        const ownerUserId = client.joinedOwnerUserId;
+        if (!ownerUserId || client.permission !== "editor") return;
+        const workspace = message.workspace;
+        if (!workspace || typeof workspace !== "object" || Array.isArray(workspace)) return;
+        sendToUser(ownerUserId, {
+          type: "shared-workspace-command",
+          fromUserId: userId,
+          fromDisplayName: client.displayName,
+          command: "workspace",
+          payload: workspace,
+          permission: client.permission,
+        });
+        return;
+      }
+
       if (message.type === "chat") {
         if (typeof message.text !== "string" || !message.text.trim()) return;
         const text = message.text.trim().slice(0, 2000);
