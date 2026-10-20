@@ -9,7 +9,7 @@ export default function DesktopBackground(){
  useEffect(()=>{let cancelled=false,key=0,request=0,current:Layer|null=null;
  const apply=async(id:string,t=mode())=>{const token=++request,w=getWallpaper(id),url=getWallpaperUrl(w,t);setTheme(t);if(current?.url===url)return;let next=w,nextUrl=url,fallbackUsed=false;
  try{await preloadWallpaper(url);}catch{if(cancelled||token!==request)return;next=getWallpaper(DEFAULT_WALLPAPER_ID);nextUrl=getWallpaperUrl(next,t);fallbackUsed=true;if(current?.url===nextUrl)return;try{await preloadWallpaper(nextUrl);}catch{return;}}
- if(cancelled||token!==request||getWallpaperUrl(getWallpaper(readWallpaperPreference()),mode())!==nextUrl)return;
+ if(cancelled||token!==request||(!fallbackUsed&&getWallpaperUrl(getWallpaper(readWallpaperPreference()),mode())!==nextUrl))return;
  const layer={wallpaper:next,url:nextUrl,key:++key};setPrevious(current);current=layer;setVisible(false);setActive(layer);};
  const change=(e:Event)=>void apply((e as CustomEvent<string>).detail||readWallpaperPreference());
  const storage=(e:StorageEvent)=>{if(e.key===WALLPAPER_STORAGE_KEY)void apply(e.newValue||DEFAULT_WALLPAPER_ID);};
