@@ -471,7 +471,10 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
           }}
           onFocus={() => {
             if (isSharedViewer) {
-              if (sharedPermission === "editor") window.dispatchEvent(new CustomEvent("utoolity:shared-command-outgoing", { detail: { command: "focus-app", payload: key } }));
+              if (sharedPermission === "editor") {
+                setActiveAppKey(key);
+                window.dispatchEvent(new CustomEvent("utoolity:shared-command-outgoing", { detail: { command: "focus-app", payload: key } }));
+              }
               return;
             }
             setActiveAppKey(key);
