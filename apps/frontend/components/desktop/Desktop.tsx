@@ -290,11 +290,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
   }, []);
 
   return (
-    <main
-      className="desktop-canvas relative min-h-dvh select-none"
-      style={{ zoom: desktopScale, width: `${100 / desktopScale}vw`, minHeight: `${100 / desktopScale}dvh` }}
-      onContextMenu={openMenu}
-    >
+    <main className="desktop-canvas relative min-h-dvh w-full select-none" onContextMenu={openMenu}>
       <DesktopBackground />
       {!hideDesktopChrome && <DesktopApps onOpen={openApp} />}
       {!hideDesktopChrome && <Profile onSleep={onSleep} />}

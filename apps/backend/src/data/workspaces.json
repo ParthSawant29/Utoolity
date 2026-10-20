@@ -4,23 +4,7 @@
       "openApps": []
     },
     "Wraith OS": {
-      "openApps": [
-        {
-          "app": "bounding-box",
-          "window": {
-            "position": {
-              "x": -4.390625,
-              "y": -129.2265625
-            },
-            "size": {
-              "width": 1226.296875,
-              "height": 553.703125
-            },
-            "maximized": false,
-            "minimized": false
-          }
-        }
-      ]
+      "openApps": []
     }
   }
 }

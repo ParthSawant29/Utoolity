@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -52,10 +53,10 @@ const imagePattern = /\.(avif|bmp|gif|jpe?g|png|svg|webp)$/i;
 const textPattern = /\.(txt|md|json|csv|xml|yaml|yml|log|ts|tsx|js|jsx|py|html|css)$/i;
 
 const formatSize = (bytes: number) => {
-  if (!Number.isFinite(bytes) || bytes <= 0) return "";
+  if (!Number.isFinite(bytes) || bytes < 0) return "0 B";
   if (bytes < 1024) return `${bytes} B`;
 
-  const units = ["KB", "MB", "GB", "TB"];
+  const units = ["KB", "MB", "GB", "TB", "PB"];
   let value = bytes / 1024;
   let unit = 0;
 
@@ -110,9 +111,20 @@ export default function FileManager({ onOpenFile }: Props) {
 
       setEntries(sorted);
 
-      // Storage usage is informational; failure must not block file browsing.
+      // Storage information is optional and must not block file browsing.
       void api<StorageUsage>("/api/storage/usage")
-        .then(setStorageUsage)
+        .then((usage) => {
+          if (
+            Number.isFinite(usage.totalBytes) &&
+            Number.isFinite(usage.usedBytes) &&
+            Number.isFinite(usage.availableBytes) &&
+            usage.totalBytes >= 0 &&
+            usage.usedBytes >= 0 &&
+            usage.availableBytes >= 0
+          ) {
+            setStorageUsage(usage);
+          }
+        })
         .catch(() => undefined);
 
       setPath(nextPath);
@@ -149,7 +161,7 @@ export default function FileManager({ onOpenFile }: Props) {
       void load(localStorage.getItem("utoolity.files.path") ?? "server");
     }
 
-    // Initial hydration only; load reads the path passed explicitly.
+    // Initial hydration only.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -191,7 +203,6 @@ export default function FileManager({ onOpenFile }: Props) {
     };
 
     document.addEventListener("mousedown", closeMenu);
-
     return () => document.removeEventListener("mousedown", closeMenu);
   }, []);
 
@@ -363,10 +374,7 @@ export default function FileManager({ onOpenFile }: Props) {
     setMenuOpen(false);
 
     try {
-      const result = await api<{ users: SharedUser[] }>(
-        "/api/storage/users",
-      );
-
+      const result = await api<{ users: SharedUser[] }>("/api/storage/users");
       setUsers(result.users ?? []);
     } catch (cause) {
       setError(
@@ -424,7 +432,10 @@ export default function FileManager({ onOpenFile }: Props) {
     storageUsage && storageUsage.totalBytes > 0
       ? Math.min(
           100,
-          (storageUsage.usedBytes / storageUsage.totalBytes) * 100,
+          Math.max(
+            0,
+            (storageUsage.usedBytes / storageUsage.totalBytes) * 100,
+          ),
         )
       : 0;
 
@@ -468,9 +479,7 @@ export default function FileManager({ onOpenFile }: Props) {
             disabled={loading}
             className="flex size-9 items-center justify-center rounded-xl border border-border hover:bg-accent disabled:opacity-50"
           >
-            <RefreshCw
-              className={`size-4 ${loading ? "animate-spin" : ""}`}
-            />
+            <RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} />
           </button>
         </div>
 
@@ -509,10 +518,7 @@ export default function FileManager({ onOpenFile }: Props) {
             ].join("/");
 
             return (
-              <span
-                key={target}
-                className="flex min-w-0 items-center gap-1"
-              >
+              <span key={target} className="flex min-w-0 items-center gap-1">
                 <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
 
                 <button
@@ -558,19 +564,31 @@ export default function FileManager({ onOpenFile }: Props) {
         </div>
       )}
 
-      {/* Thin storage indicator, positioned immediately above the footer. */}
+      {/* Server storage usage: visible summary with a hover detail panel. */}
       {storageUsage && (
-        <div
-          className="pointer-events-none absolute inset-x-5 bottom-[4.15rem] z-20"
-          title={`${(storageUsage.availableBytes / 1024 ** 3).toFixed(1)} GB free of ${(storageUsage.totalBytes / 1024 ** 3).toFixed(1)} GB`}
-        >
+        <div className="group absolute inset-x-5 bottom-[4.15rem] z-20">
+          <div className="mb-1 flex items-center justify-between gap-3 text-[10px] leading-none">
+            <span className="truncate text-muted-foreground">
+              Server storage{" "}
+              <span className="font-medium text-foreground">
+                {formatSize(storageUsage.usedBytes)}
+              </span>
+              {" / "}
+              {formatSize(storageUsage.totalBytes)}
+            </span>
+
+            <span className="shrink-0 tabular-nums text-muted-foreground">
+              {Math.round(storagePercent)}%
+            </span>
+          </div>
+
           <div
             role="progressbar"
             aria-label="Server storage used"
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={Math.round(storagePercent)}
-            className="relative h-[2px] w-full overflow-visible rounded-full bg-border/60"
+            className="relative h-[2px] w-full overflow-visible rounded-full bg-border/70"
           >
             <div
               className="relative h-full min-w-[2px] rounded-full bg-primary shadow-[0_0_5px_hsl(var(--primary)/0.7)] transition-[width] duration-500 ease-out motion-reduce:transition-none after:absolute after:-right-[2px] after:top-1/2 after:size-[5px] after:-translate-y-1/2 after:rounded-full after:bg-primary after:shadow-[0_0_5px_2px_hsl(var(--primary)/0.75)] after:content-[''] after:animate-pulse motion-reduce:after:animate-none"
@@ -578,11 +596,30 @@ export default function FileManager({ onOpenFile }: Props) {
             />
           </div>
 
-          <span className="sr-only">
-            Server storage:{" "}
-            {(storageUsage.availableBytes / 1024 ** 3).toFixed(1)} GB free of{" "}
-            {(storageUsage.totalBytes / 1024 ** 3).toFixed(1)} GB
-          </span>
+          <div className="pointer-events-none absolute bottom-full left-0 z-50 mb-2 hidden min-w-52 rounded-lg border border-border bg-popover px-3 py-2 text-xs text-popover-foreground shadow-xl group-hover:block group-focus-within:block">
+            <p className="font-semibold">Server storage</p>
+
+            <div className="mt-2 flex justify-between gap-4">
+              <span className="text-muted-foreground">Used</span>
+              <span className="tabular-nums">
+                {formatSize(storageUsage.usedBytes)}
+              </span>
+            </div>
+
+            <div className="mt-1 flex justify-between gap-4">
+              <span className="text-muted-foreground">Available</span>
+              <span className="tabular-nums">
+                {formatSize(storageUsage.availableBytes)}
+              </span>
+            </div>
+
+            <div className="mt-1 flex justify-between gap-4">
+              <span className="text-muted-foreground">Total</span>
+              <span className="tabular-nums">
+                {formatSize(storageUsage.totalBytes)}
+              </span>
+            </div>
+          </div>
         </div>
       )}
 
@@ -990,13 +1027,8 @@ export default function FileManager({ onOpenFile }: Props) {
             {users.length ? (
               <ul className="max-h-64 space-y-2 overflow-y-auto">
                 {users.map((user) => (
-                  <li
-                    key={user.id}
-                    className="rounded-xl bg-muted px-3 py-2"
-                  >
-                    <p className="text-sm font-semibold">
-                      {user.displayName}
-                    </p>
+                  <li key={user.id} className="rounded-xl bg-muted px-3 py-2">
+                    <p className="text-sm font-semibold">{user.displayName}</p>
                     <p className="text-xs text-muted-foreground">
                       {user.hostname}
                     </p>

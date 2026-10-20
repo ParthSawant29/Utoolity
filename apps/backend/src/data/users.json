@@ -20,8 +20,9 @@
       "macId": "5C:87:9C:EF:FC:7C",
       "role": "intern",
       "preferences": {
-        "utoolity.wallpaper": "new.jpg",
-        "utoolity.icon-size": "large"
+        "utoolity.wallpaper": "default.jpg",
+        "utoolity.icon-size": "large",
+        "utoolity.theme": "light"
       }
     },
     {
