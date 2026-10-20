@@ -807,9 +807,17 @@ export default async function authRoutes(app: FastifyInstance) {
 
       try {
         const users = await readUsers();
-        const user = findByHostname(users, request.body.hostname);
+        const deviceId = getDeviceId(request, "");
+        const assignedUser = deviceId
+          ? users.find((candidate) => candidate.deviceId === deviceId)
+          : undefined;
+        const user = assignedUser ?? findByHostname(users, request.body.hostname);
 
-        if (!user || user.password !== request.body.password) {
+        if (
+          !user ||
+          user.hostname.toLowerCase() !== request.body.hostname.trim().toLowerCase() ||
+          user.password !== request.body.password
+        ) {
           return reply.code(401).send({
             message: "Incorrect password.",
           });
