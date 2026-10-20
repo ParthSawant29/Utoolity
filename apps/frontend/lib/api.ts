@@ -8,6 +8,12 @@ export function getDeviceId(): string | undefined {
 
   if (stored) return stored;
 
+  const hostname = window.localStorage.getItem("utoolity.hostname")?.trim();
+  if (hostname) {
+    window.localStorage.setItem(key, hostname);
+    return hostname;
+  }
+
   const id =
     typeof window.crypto?.randomUUID === "function"
       ? window.crypto.randomUUID()
