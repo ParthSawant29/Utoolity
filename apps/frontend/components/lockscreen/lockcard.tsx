@@ -160,7 +160,7 @@ function Lockcard({
     let active = true;
 
     async function loadProfile() {
-      let hasAuthenticatedSession = initialAuthenticated;
+      const hasAuthenticatedSession = initialAuthenticated;
 
       // Home already verifies /api/auth/me before rendering this lock screen.
       // Avoid issuing the same unauthenticated request a second time here.
@@ -209,7 +209,7 @@ function Lockcard({
         setError("");
       } catch (cause) {
         if (!active) return;
-        console.error("Failed to load lockscreen profile:", cause);
+        console.warn("Lock-screen profile lookup failed; showing guest fallback.", cause);
         // Keep the lock screen usable for an unconfigured device during a
         // transient profile lookup failure. The backend remains authoritative
         // when the password is submitted.
