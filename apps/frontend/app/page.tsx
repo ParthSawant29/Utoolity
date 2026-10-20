@@ -13,7 +13,7 @@ const SHELL_STATE_KEY = "utoolity.shell-state";
 const LAST_ACTIVITY_KEY = "utoolity.last-activity";
 const SLEEP_STARTED_KEY = "utoolity.sleep-started";
 const SLEEP_AFTER_MS = 5 * 60 * 1000;
-const LOCK_AFTER_MS = 10 * 60 * 1000;
+const LOCK_AFTER_MS = 5 * 60 * 1000;
 
 export default function Home() {
   const [shellState, setShellState] = useState<ShellState>("checking");
@@ -195,18 +195,13 @@ export default function Home() {
         // A different authenticated account on this browser is the signal to
         // leave the previous desktop and require the newly detected user to unlock.
         if (previousUserId && previousUserId !== nextUserId) {
-          // Keep the newly detected identity on the lock screen, but invalidate
-          // the previous authenticated session so the new user must sign in.
+          // A changed identity must lock the desktop, but must not revoke the
+          // newly authenticated server session as a side effect of refresh.
           localStorage.setItem("utoolity.cached-user", JSON.stringify(response.user));
           localStorage.setItem(AUTHENTICATED_SESSION_KEY, "false");
           localStorage.setItem(SHELL_STATE_KEY, "locked");
           localStorage.removeItem(SLEEP_STARTED_KEY);
           setShellState("locked");
-          try {
-            await api("/api/auth/logout", { method: "POST" });
-          } catch {
-            // Keep the UI locked even if the backend is temporarily unreachable.
-          }
           return;
         }
 
@@ -325,8 +320,11 @@ export default function Home() {
   }, [shellState]);
 
   const enterSleep = () => {
+    const now = Date.now();
+    lastActivityRef.current = now;
+    localStorage.setItem(LAST_ACTIVITY_KEY, String(now));
     localStorage.setItem(SHELL_STATE_KEY, "sleep");
-    localStorage.setItem(SLEEP_STARTED_KEY, String(Date.now()));
+    localStorage.setItem(SLEEP_STARTED_KEY, String(now));
     setShellState("sleep");
   };
 
