@@ -58,6 +58,14 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
   }, [isSharedViewer, sharedPermission]);
   const closeMenu = useCallback(() => setMenu(null), []);
   const updateWindowState = useCallback((key: string, window: WindowState) => {
+    if (isSharedViewer) {
+      if (sharedPermission === "editor") {
+        window.dispatchEvent(new CustomEvent("utoolity:shared-command-outgoing", {
+          detail: { command: "window-state", payload: { key, window } },
+        }));
+      }
+      return;
+    }
     setOpenApps((current) =>
       current.map((item) =>
         `${item.app}:${item.filePath ?? ""}` === key
@@ -65,7 +73,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
           : item,
       ),
     );
-  }, []);
+  }, [isSharedViewer, sharedPermission]);
   // Derive maximized visibility from persisted window state as well as the
   // immediate expanded-window flag. This also covers restored maximized windows.
   const hasMaximizedWindow = openApps.some(
@@ -156,6 +164,12 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
       if (!detail?.ownerUserId) return;
       setSharedOwnerUserId(detail.ownerUserId);
       setSharedPermission(detail.permission === "editor" ? "editor" : "view");
+      if (detail.workspace?.context && typeof detail.workspace.context === "object") {
+        const context = detail.workspace.context as { boundingBoxFolder?: unknown };
+        if (typeof context.boundingBoxFolder === "string" && context.boundingBoxFolder) {
+          localStorage.setItem("utoolity.bounding-box.folder", context.boundingBoxFolder);
+        }
+      }
       if (Array.isArray(detail.workspace?.openApps)) {
         const next = detail.workspace.openApps.filter((item) => item && typeof item.app === "string") as typeof openApps;
         setOpenApps(next);
@@ -166,6 +180,12 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
     const applySharedWorkspace = (event: Event) => {
       const detail = (event as CustomEvent<{ ownerUserId?: string; workspace?: { openApps?: typeof openApps } }>).detail;
       if (!detail?.workspace || (sharedOwnerUserId && detail.ownerUserId !== sharedOwnerUserId)) return;
+      if (detail.workspace.context && typeof detail.workspace.context === "object") {
+        const context = detail.workspace.context as { boundingBoxFolder?: unknown };
+        if (typeof context.boundingBoxFolder === "string" && context.boundingBoxFolder) {
+          localStorage.setItem("utoolity.bounding-box.folder", context.boundingBoxFolder);
+        }
+      }
       if (Array.isArray(detail.workspace.openApps)) {
         const next = detail.workspace.openApps.filter((item) => item && typeof item.app === "string") as typeof openApps;
         setOpenApps(next);
@@ -197,6 +217,13 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
       if (detail.command === "focus-app" && typeof detail.payload === "string") {
         setActiveAppKey(detail.payload);
         window.dispatchEvent(new CustomEvent("utoolity:collaboration-audit", { detail: { actorUserId: detail.fromUserId, actorDisplayName: detail.fromDisplayName, action: "focus-app", target: detail.payload } }));
+      }
+      if (detail.command === "window-state" && detail.payload && typeof detail.payload === "object") {
+        const payload = detail.payload as { key?: string; window?: WindowState };
+        if (typeof payload.key === "string" && payload.window) {
+          setOpenApps((current) => current.map((item) => `${item.app}:${item.filePath ?? ""}` === payload.key ? { ...item, window: payload.window } : item));
+          window.dispatchEvent(new CustomEvent("utoolity:collaboration-audit", { detail: { actorUserId: detail.fromUserId, actorDisplayName: detail.fromDisplayName, action: "window-state", target: payload.key } }));
+        }
       }
       if (detail.command === "workspace" && detail.payload && typeof detail.payload === "object") {
         const workspace = detail.payload as { openApps?: typeof openApps };
@@ -237,7 +264,12 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
   useEffect(() => {
     if (!workspaceHydrated || !workspaceUserId || isSharedViewer) return;
     const timer = window.setTimeout(() => {
-      const workspace = { openApps };
+      const workspace = {
+        openApps,
+        context: {
+          boundingBoxFolder: localStorage.getItem("utoolity.bounding-box.folder"),
+        },
+      };
       localStorage.setItem(`utoolity.open-apps.${workspaceUserId}`, JSON.stringify(openApps));
       // Geometry stays local while the pointer moves; send one settled snapshot
       // over the existing authenticated WebSocket after the gesture.
@@ -382,7 +414,13 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
           offset={{ x: (index % 3) * 28, y: (index % 3) * 24 }}
           initialState={windowState}
           onStateChange={(nextWindowState) => updateWindowState(key, nextWindowState)}
-          onFocus={() => setActiveAppKey(key)}
+          onFocus={() => {
+            if (isSharedViewer) {
+              if (sharedPermission === "editor") window.dispatchEvent(new CustomEvent("utoolity:shared-command-outgoing", { detail: { command: "focus-app", payload: key } }));
+              return;
+            }
+            setActiveAppKey(key);
+          }}
           onExpandedChange={(expanded) =>
             setExpandedAppKey((current) => {
               if (expanded) return key;
