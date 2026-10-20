@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { UserRound } from "lucide-react";
-import { api } from "../../lib/api";
+import { api, ApiError } from "../../lib/api";
 
 type ProfileData = {
   id: string;
@@ -39,16 +39,16 @@ export default function Profile({ onSleep }: ProfileProps) {
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
       const isUnauthenticated =
-        message === "Not authenticated." ||
-        message === "Session user no longer exists." ||
-        message.includes("(401)");
-
-      setProfile(null);
-      setProfileState(isUnauthenticated ? "unauthenticated" : "error");
+        error instanceof ApiError && error.status === 401;
 
       if (isUnauthenticated) {
+        setProfile(null);
+        setProfileState("unauthenticated");
         return;
       }
+
+      // Keep the cached authenticated profile on transient network/server errors.
+      setProfileState((current) => current === "authenticated" ? "authenticated" : "error");
 
       console.error("Failed to load authenticated profile:", error);
       setProfileError("Your session could not be verified. Please sign in again.");
