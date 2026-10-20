@@ -4,11 +4,15 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "generate-wallpapers": "node scripts/generate-wallpapers.mjs",
+    "predev": "pnpm generate-wallpapers",
     "dev": "next dev --port 3000",
+    "prebuild": "pnpm generate-wallpapers",
     "build": "next build",
+    "precheck-types": "pnpm generate-wallpapers",
+    "check-types": "next typegen && tsc --noEmit",
     "start": "next start",
-    "lint": "eslint --max-warnings 0",
-    "check-types": "next typegen && tsc --noEmit"
+    "lint": "eslint --max-warnings 0"
   },
   "dependencies": {
     "@repo/theme": "workspace:*",
