@@ -13,7 +13,7 @@ const SHELL_STATE_KEY = "utoolity.shell-state";
 const LAST_ACTIVITY_KEY = "utoolity.last-activity";
 const SLEEP_STARTED_KEY = "utoolity.sleep-started";
 const SLEEP_AFTER_MS = 5 * 60 * 1000;
-const LOCK_AFTER_MS = 5 * 60 * 1000;
+const LOCK_AFTER_MS = 2 * 60 * 1000;
 
 export default function Home() {
   const [shellState, setShellState] = useState<ShellState>("checking");
@@ -302,7 +302,7 @@ export default function Home() {
       : Date.now();
     localStorage.setItem(SLEEP_STARTED_KEY, String(sleepStarted));
     const timer = window.setInterval(() => {
-      if (Date.now() - sleepStarted < LOCK_AFTER_MS - SLEEP_AFTER_MS) return;
+      if (Date.now() - sleepStarted < LOCK_AFTER_MS) return;
       localStorage.setItem(SHELL_STATE_KEY, "locked");
       setShellState("locked");
     }, 1000);
