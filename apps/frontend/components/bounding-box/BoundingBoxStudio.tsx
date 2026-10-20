@@ -133,6 +133,54 @@ export default function BoundingBoxStudio() {
   };
 
   useEffect(() => {
+    const savedFolder = localStorage.getItem("utoolity.bounding-box.folder");
+    if (savedFolder) void loadFolder(savedFolder).catch(() => undefined);
+    const handleFolderSelected = (event: Event) => {
+      const detail = (event as CustomEvent<{ path?: string; requester?: string }>).detail;
+      if (detail?.requester !== "bounding-box") return;
+      const path = detail.path;
+      if (path) void loadFolder(path).catch(() => undefined);
+    };
+    window.addEventListener("utoolity:polygon-folder-selected", handleFolderSelected);
+    return () => window.removeEventListener("utoolity:polygon-folder-selected", handleFolderSelected);
+  }, []);
+
+  const currentImage =
+    selectedImageIndex !== null
+      ? images[selectedImageIndex] ?? null
+      : null;
+
+  const saveAnnotations = useCallback(async () => {
+    const folder = localStorage.getItem("utoolity.bounding-box.folder");
+    if (!folder || !currentImage || imageDimensions.width <= 0 || imageDimensions.height <= 0) return;
+    await api("/api/tools/bounding-box/annotations", {
+      method: "PUT",
+      body: JSON.stringify({
+        path: `${folder}/${currentImage.name}`,
+        imagePath: currentImage.name,
+        imageWidth: imageDimensions.width,
+        imageHeight: imageDimensions.height,
+        boxes: polygons.map((polygon) => {
+          const xs = polygon.points.map((point) => point.x);
+          const ys = polygon.points.map((point) => point.y);
+          const x = Math.min(...xs);
+          const y = Math.min(...ys);
+          return {
+            id: polygon.id,
+            label: polygon.label,
+            x,
+            y,
+            width: Math.max(...xs) - x,
+            height: Math.max(...ys) - y,
+            createdBy: polygon.createdBy ?? currentActorRef.current,
+            updatedBy: polygon.updatedBy ?? currentActorRef.current,
+          };
+        }),
+      }),
+    });
+  }, [currentImage, imageDimensions, polygons]);
+
+  useEffect(() => {
     try {
       const cached = localStorage.getItem("utoolity.cached-user");
       if (cached) {
@@ -198,54 +246,6 @@ export default function BoundingBoxStudio() {
     }, 90);
     return () => window.clearTimeout(timer);
   }, [annotationsLoaded, currentImage, imageDimensions, polygons, selectedImageIndex]);
-
-  useEffect(() => {
-    const savedFolder = localStorage.getItem("utoolity.bounding-box.folder");
-    if (savedFolder) void loadFolder(savedFolder).catch(() => undefined);
-    const handleFolderSelected = (event: Event) => {
-      const detail = (event as CustomEvent<{ path?: string; requester?: string }>).detail;
-      if (detail?.requester !== "bounding-box") return;
-      const path = detail.path;
-      if (path) void loadFolder(path).catch(() => undefined);
-    };
-    window.addEventListener("utoolity:polygon-folder-selected", handleFolderSelected);
-    return () => window.removeEventListener("utoolity:polygon-folder-selected", handleFolderSelected);
-  }, []);
-
-  const currentImage =
-    selectedImageIndex !== null
-      ? images[selectedImageIndex] ?? null
-      : null;
-
-  const saveAnnotations = useCallback(async () => {
-    const folder = localStorage.getItem("utoolity.bounding-box.folder");
-    if (!folder || !currentImage || imageDimensions.width <= 0 || imageDimensions.height <= 0) return;
-    await api("/api/tools/bounding-box/annotations", {
-      method: "PUT",
-      body: JSON.stringify({
-        path: `${folder}/${currentImage.name}`,
-        imagePath: currentImage.name,
-        imageWidth: imageDimensions.width,
-        imageHeight: imageDimensions.height,
-        boxes: polygons.map((polygon) => {
-          const xs = polygon.points.map((point) => point.x);
-          const ys = polygon.points.map((point) => point.y);
-          const x = Math.min(...xs);
-          const y = Math.min(...ys);
-          return {
-            id: polygon.id,
-            label: polygon.label,
-            x,
-            y,
-            width: Math.max(...xs) - x,
-            height: Math.max(...ys) - y,
-            createdBy: polygon.createdBy ?? currentActorRef.current,
-            updatedBy: polygon.updatedBy ?? currentActorRef.current,
-          };
-        }),
-      }),
-    });
-  }, [currentImage, imageDimensions, polygons]);
 
   const navigateToImage = useCallback((nextIndex: number) => {
     void saveAnnotations()
