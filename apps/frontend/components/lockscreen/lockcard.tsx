@@ -14,7 +14,13 @@ import {
 } from "lucide-react";
 import { api, ApiError } from "../../lib/api";
 import { useClock } from "../shared/useClock";
-import { getWallpapers } from "../../lib/wallpapers";
+import {
+  DEFAULT_WALLPAPER_ID,
+  getWallpaper,
+  getWallpaperUrl,
+  readWallpaperPreference,
+  WALLPAPERS,
+} from "../../lib/wallpapers";
 type LockProfile = {
   id: string;
   hostname: string;
@@ -120,34 +126,35 @@ function Lockcard({
     }, 350);
   }, [leaving, onUnlock]);
   useEffect(() => {
-    let availableWallpapers: Array<{ file: string; url: string }> = [];
-    let selectedWallpaper =
-      window.localStorage.getItem("utoolity.wallpaper") ?? "default.jpg";
-    const normalizeWallpaper = (value: string) =>
-      value === "Midnight" ? "default.jpg" : value;
     const applyWallpaper = () => {
-      selectedWallpaper = normalizeWallpaper(selectedWallpaper);
-      document.documentElement.dataset.wallpaper = selectedWallpaper;
+      const root = document.documentElement;
+      const selected = getWallpaper(readWallpaperPreference());
+      const fallback = getWallpaper(DEFAULT_WALLPAPER_ID);
+      const wallpaper = selected.kind === "image"
+        ? selected
+        : WALLPAPERS.find((item) => item.id === DEFAULT_WALLPAPER_ID && item.kind === "image") ??
+          WALLPAPERS.find((item) => item.kind === "image") ??
+          fallback;
+      const theme = root.classList.contains("dark") ? "dark" : "light";
+      root.dataset.wallpaper = selected.id;
       setWallpaperUrl(
-        availableWallpapers.find(({ file }) => file === selectedWallpaper)?.url ??
-          availableWallpapers.find(({ file }) => file === "default.jpg")?.url ??
-          availableWallpapers[0]?.url ??
-          null,
+        wallpaper.kind === "image" ? getWallpaperUrl(wallpaper, theme) : null,
       );
     };
+
     applyWallpaper();
-    let cancelled = false;
-    void getWallpapers()
-      .then((wallpapers) => {
-        if (cancelled) return;
-        availableWallpapers = wallpapers;
-        applyWallpaper();
-      })
-      .catch(() => undefined);
-    // The lock screen restores appearance from local preferences. Do not
-    // request authenticated preferences while the user is signed out.
+    window.addEventListener("utoolity:wallpaper-changed", applyWallpaper);
+    window.addEventListener("storage", applyWallpaper);
+    const observer = new MutationObserver(applyWallpaper);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class"],
+    });
+
     return () => {
-      cancelled = true;
+      window.removeEventListener("utoolity:wallpaper-changed", applyWallpaper);
+      window.removeEventListener("storage", applyWallpaper);
+      observer.disconnect();
     };
   }, []);
   useEffect(() => {
