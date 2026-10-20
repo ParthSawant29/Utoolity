@@ -376,6 +376,7 @@ export default function FileManager({ onOpenFile }: Props) {
         </div>
       )}
   
+      <style jsx>{`
       .storage-capacity-track {
         position: relative;
         height: 2px;
@@ -415,6 +416,8 @@ export default function FileManager({ onOpenFile }: Props) {
         .storage-capacity-fill::after { animation: none; }
         .storage-capacity-fill { transition: none; }
       }
+
+      `}</style>
 
   </main>
   );
