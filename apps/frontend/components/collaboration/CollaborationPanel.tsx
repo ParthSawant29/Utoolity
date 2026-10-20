@@ -189,6 +189,18 @@ export default function CollaborationPanel() {
     setMembers((current) => current.map((item) => item.userId === member.userId ? { ...item, permission } : item));
   };
 
+  const publishAnnotationState = useCallback((payload: unknown) => {
+    send({ type: "annotation-state", payload, deviceId: getDeviceId() });
+  }, [send]);
+
+  useEffect(() => {
+    const publish = (event: Event) => {
+      publishAnnotationState((event as CustomEvent<unknown>).detail);
+    };
+    window.addEventListener("utoolity:annotation-state-outgoing", publish);
+    return () => window.removeEventListener("utoolity:annotation-state-outgoing", publish);
+  }, [publishAnnotationState]);
+
   const sendChat = (event: FormEvent) => {
     event.preventDefault();
     const text = draft.trim();
