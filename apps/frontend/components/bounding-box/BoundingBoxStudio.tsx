@@ -219,13 +219,19 @@ export default function BoundingBoxStudio() {
         if (!folder || folder !== payload.folderPath) return;
         const imageIndex = images.findIndex((image) => image.name === payload.imageName);
         if (imageIndex < 0) return;
+        suppressAnnotationSyncRef.current = true;
         setSelectedImageIndex(imageIndex);
         setImageDimensions({
           width: typeof payload.imageWidth === "number" ? payload.imageWidth : imageDimensions.width,
           height: typeof payload.imageHeight === "number" ? payload.imageHeight : imageDimensions.height,
         });
-        suppressAnnotationSyncRef.current = true;
         loadAnnotations(payload.annotations);
+        if (remoteWriteTimerRef.current) clearTimeout(remoteWriteTimerRef.current);
+        remoteWriteTimerRef.current = setTimeout(() => {
+          remoteWriteTimerRef.current = null;
+          suppressAnnotationSyncRef.current = false;
+          void saveAnnotations().catch(() => undefined);
+        }, 180);
         return;
       }
       if (selectedImageIndex === null) return;
