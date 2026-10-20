@@ -2,7 +2,6 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { hostname as getSystemHostname } from "node:os";
 
 type InternUser = {
   id: string;
@@ -764,14 +763,12 @@ export default async function authRoutes(app: FastifyInstance) {
     try {
       const users = await readUsers();
       const deviceId = getDeviceId(request, "");
-      const systemHostname = (process.env.UTOOLITY_HOSTNAME || getSystemHostname()).trim();
       let user: InternUser | undefined;
 
       if (deviceId) {
         user = users.find((candidate) => candidate.deviceId === deviceId);
       }
 
-      if (!user && systemHostname) user = findByHostname(users, systemHostname);
       if (!user && hostname) user = findByHostname(users, hostname);
 
       if (!user && deviceId) {
@@ -781,14 +778,8 @@ export default async function authRoutes(app: FastifyInstance) {
         if (assignedIds.length === 1) user = findById(users, assignedIds[0]);
       }
 
-      if (!user && deviceId) {
-        const macMatches = users.filter((candidate) => candidate.macId.toLowerCase() === deviceId.toLowerCase());
-        if (macMatches.length === 1) user = macMatches[0];
-      }
-
-      if (!user) user = findById(users, "guest-intern");
       if (!user) {
-        return reply.code(500).send({ message: "The guest profile is missing from users.json." });
+        return { requiresDeviceId: true };
       }
 
       return { user: { ...publicUser(user), locked: true } };
