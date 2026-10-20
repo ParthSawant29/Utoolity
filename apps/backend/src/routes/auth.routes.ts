@@ -767,15 +767,16 @@ export default async function authRoutes(app: FastifyInstance) {
 
       if (deviceId) {
         user = users.find((candidate) => candidate.deviceId === deviceId);
-        if (!user) {
-          const sessions = await readSessions();
-          const matches = Object.values(sessions).filter((session) => session.deviceId === deviceId);
-          const assignedIds = [...new Set(matches.map((session) => session.userId))];
-          if (assignedIds.length === 1) user = findById(users, assignedIds[0]);
-        }
       }
 
       if (!user && hostname) user = findByHostname(users, hostname);
+
+      if (!user && deviceId) {
+        const sessions = await readSessions();
+        const matches = Object.values(sessions).filter((session) => session.deviceId === deviceId);
+        const assignedIds = [...new Set(matches.map((session) => session.userId))];
+        if (assignedIds.length === 1) user = findById(users, assignedIds[0]);
+      }
 
       if (!user && deviceId) {
         const macMatches = users.filter((candidate) => candidate.macId.toLowerCase() === deviceId.toLowerCase());
