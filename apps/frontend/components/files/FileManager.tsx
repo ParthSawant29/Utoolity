@@ -10,6 +10,7 @@ import { api, API_URL, ApiError } from "@/lib/api";
 
 type Entry = { name: string; path: string; type: "file" | "directory"; size: number };
 type SharedUser = { id: string; displayName: string; hostname: string };
+type StorageUsage = { totalBytes: number; availableBytes: number; usedBytes: number };
 type Props = { onOpenFile?: (path: string, type: "image" | "text") => void };
 
 const imagePattern = /\.(avif|bmp|gif|jpe?g|png|svg|webp)$/i;
@@ -40,6 +41,7 @@ export default function FileManager({ onOpenFile }: Props) {
   const [folderPickerRequester, setFolderPickerRequester] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [busy, setBusy] = useState(false);
+  const [storageUsage, setStorageUsage] = useState<StorageUsage | null>(null);
   const [plusMenuOpen, setPlusMenuOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -54,6 +56,8 @@ export default function FileManager({ onOpenFile }: Props) {
         a.type === b.type ? a.name.localeCompare(b.name) : a.type === "directory" ? -1 : 1,
       );
       setEntries(sorted);
+      // Storage usage is informational; its failure must not block file browsing.
+      void api<StorageUsage>("/api/storage/usage").then(setStorageUsage).catch(() => undefined);
       setPath(nextPath);
       localStorage.setItem("utoolity.files.path", nextPath);
       setSelected(null);
@@ -257,6 +261,23 @@ export default function FileManager({ onOpenFile }: Props) {
       </div>
 
       {error && <div role="alert" className="mx-5 mt-4 flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"><span className="min-w-0 flex-1">{error}</span><button type="button" aria-label="Dismiss error" onClick={() => setError(null)}><X className="size-4" /></button></div>}
+
+      {storageUsage && (
+        <div className="shrink-0 border-b border-border px-5 py-3">
+          <div className="mb-2 flex items-center justify-between gap-3 text-xs">
+            <span className="font-semibold text-foreground">Server storage</span>
+            <span className="text-muted-foreground">
+              {(storageUsage.availableBytes / 1024 ** 3).toFixed(1)} GB free of {(storageUsage.totalBytes / 1024 ** 3).toFixed(1)} GB
+            </span>
+          </div>
+          <div role="progressbar" aria-label="Server storage used" aria-valuemin={0} aria-valuemax={100}
+            aria-valuenow={storageUsage.totalBytes > 0 ? Math.min(100, Math.round(storageUsage.usedBytes / storageUsage.totalBytes * 100)) : 0}
+            className="h-2 overflow-hidden rounded-full bg-muted">
+            <div className="h-full rounded-full bg-primary transition-[width]"
+              style={{ width: (storageUsage.totalBytes > 0 ? Math.min(100, storageUsage.usedBytes / storageUsage.totalBytes * 100) : 0) + "%" }} />
+          </div>
+        </div>
+      )}
 
       <section className="min-h-0 flex-1 overflow-y-auto p-5">
         {loading ? (
