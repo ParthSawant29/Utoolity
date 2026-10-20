@@ -164,7 +164,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
 
   useEffect(() => {
     const applySharedSession = (event: Event) => {
-      const detail = (event as CustomEvent<{ ownerUserId?: string; permission?: "view" | "editor"; workspace?: { openApps?: typeof openApps; activeAppKey?: string | null; context?: Record<string, unknown> } }>).detail;
+      const detail = (event as CustomEvent<{ ownerUserId?: string; permission?: "view" | "editor"; workspace?: { openApps?: typeof openApps; activeAppKey?: string | null; context?: Record<string, unknown>; theme?: string; preferences?: Record<string, string> } }>).detail;
       if (!detail?.ownerUserId) return;
       setSharedOwnerUserId(detail.ownerUserId);
       setSharedPermission(detail.permission === "editor" ? "editor" : "view");
@@ -172,6 +172,8 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
         const context = detail.workspace.context as { boundingBoxFolder?: unknown };
         if (typeof context.boundingBoxFolder === "string" && context.boundingBoxFolder) {
           localStorage.setItem("utoolity.bounding-box.folder", context.boundingBoxFolder);
+          localStorage.setItem("utoolity.polygon.folder", context.boundingBoxFolder);
+          window.dispatchEvent(new CustomEvent("utoolity:shared-folder-changed", { detail: { path: context.boundingBoxFolder } }));
         }
       }
       if (Array.isArray(detail.workspace?.openApps)) {
@@ -188,6 +190,8 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
         const context = detail.workspace.context as { boundingBoxFolder?: unknown };
         if (typeof context.boundingBoxFolder === "string" && context.boundingBoxFolder) {
           localStorage.setItem("utoolity.bounding-box.folder", context.boundingBoxFolder);
+          localStorage.setItem("utoolity.polygon.folder", context.boundingBoxFolder);
+          window.dispatchEvent(new CustomEvent("utoolity:shared-folder-changed", { detail: { path: context.boundingBoxFolder } }));
         }
       }
       if (Array.isArray(detail.workspace.openApps)) {
@@ -286,6 +290,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
         activeAppKey,
         context: {
           boundingBoxFolder: localStorage.getItem("utoolity.bounding-box.folder"),
+          polygonFolder: localStorage.getItem("utoolity.polygon.folder"),
         },
       };
       localStorage.setItem(`utoolity.open-apps.${workspaceUserId}`, JSON.stringify(openApps));
