@@ -56,6 +56,13 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
       ),
     );
   }, []);
+  // Derive maximized visibility from persisted window state as well as the
+  // immediate expanded-window flag. This also covers restored maximized windows.
+  const hasMaximizedWindow = openApps.some(
+    (item) => item.window?.maximized === true && item.window?.minimized !== true,
+  );
+  const hideDesktopChrome = expandedAppKey !== null || hasMaximizedWindow;
+
   const windowSummaries: WindowSummary[] = openApps.map((item) => {
     const key = `${item.app}:${item.filePath ?? ""}`;
     return {
@@ -289,9 +296,9 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
       onContextMenu={openMenu}
     >
       <DesktopBackground />
-      {!expandedAppKey && <DesktopApps onOpen={openApp} />}
-      {!expandedAppKey && <Profile onSleep={onSleep} />}
-      {!expandedAppKey && (
+      {!hideDesktopChrome && <DesktopApps onOpen={openApp} />}
+      {!hideDesktopChrome && <Profile onSleep={onSleep} />}
+      {!hideDesktopChrome && (
         <SystemTray
           windows={windowSummaries}
           onFocusWindow={(key) => {
