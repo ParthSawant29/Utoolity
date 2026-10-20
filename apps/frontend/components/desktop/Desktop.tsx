@@ -449,7 +449,21 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
           active={activeAppKey === key}
           offset={{ x: (index % 3) * 28, y: (index % 3) * 24 }}
           initialState={windowState}
-          onStateChange={(nextWindowState) => updateWindowState(key, nextWindowState)}
+          onStateChange={(nextWindowState) => {
+            updateWindowState(key, nextWindowState);
+            if (!isSharedViewer) {
+              window.dispatchEvent(new CustomEvent("utoolity:workspace-state-changed", {
+                detail: {
+                  openApps: openApps.map((item) => `${item.app}:${item.filePath ?? ""}` === key ? { ...item, window: nextWindowState } : item),
+                  activeAppKey,
+                  context: {
+                    boundingBoxFolder: localStorage.getItem("utoolity.bounding-box.folder"),
+                    polygonFolder: localStorage.getItem("utoolity.polygon.folder"),
+                  },
+                },
+              }));
+            }
+          }}
           onFocus={() => {
             if (isSharedViewer) {
               if (sharedPermission === "editor") window.dispatchEvent(new CustomEvent("utoolity:shared-command-outgoing", { detail: { command: "focus-app", payload: key } }));
