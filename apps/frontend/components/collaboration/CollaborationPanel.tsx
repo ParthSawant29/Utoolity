@@ -279,9 +279,10 @@ export default function CollaborationPanel() {
             </div>
           )}
 
-          {members.length > 0 && (
+          {!joinedOwner && (
             <div className="space-y-2 border-b border-border p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">In your session</p>
+              {members.length === 0 && <p className="text-xs text-muted-foreground">No collaborators have joined yet.</p>}
               {members.map((member) => (
                 <div key={member.userId} className="flex items-center gap-2 rounded-lg border border-border/70 px-3 py-2">
                   <span className="min-w-0 flex-1 truncate text-sm">{member.displayName}</span>
@@ -316,7 +317,7 @@ export default function CollaborationPanel() {
                   <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-sm font-bold">{user.displayName.slice(0, 1).toUpperCase()}</div>
                   <div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{user.displayName}</p><p className="text-xs text-muted-foreground">{onlineUsers.has(user.userId) || user.online ? "Active now" : "Offline"}</p></div>
                   <span className={`size-2 rounded-full ${onlineUsers.has(user.userId) || user.online ? "bg-emerald-500" : "bg-muted-foreground/35"}`} />
-                  <button type="button" onClick={() => requestJoin(user)} disabled={!connected || !(onlineUsers.has(user.userId) || user.online) || Boolean(joinedOwner)} title={joinedUsers.has(user.userId) ? "Already in your session" : "Request to join this desktop"} disabled={!connected || !(onlineUsers.has(user.userId) || user.online) || Boolean(joinedOwner) || joinedUsers.has(user.userId)} className="rounded-lg border border-border p-2 hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"><Eye className="size-4" /></button>
+                  <button type="button" onClick={() => requestJoin(user)} title={joinedUsers.has(user.userId) ? "Already in your session" : "Request to join this desktop"} disabled={!connected || !(onlineUsers.has(user.userId) || user.online) || Boolean(joinedOwner) || joinedUsers.has(user.userId)} className="rounded-lg border border-border p-2 hover:bg-muted disabled:cursor-not-allowed disabled:opacity-40"><Eye className="size-4" /></button>
                 </div>
               ))}
               <p className="px-1 text-xs text-muted-foreground">The host must approve every join and chooses view-only or editor access.</p>
