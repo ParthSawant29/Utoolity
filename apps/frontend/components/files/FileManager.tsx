@@ -1,23 +1,29 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Download,
-  File,
-  Folder,
-  MoreHorizontal,
-  Pencil,
-  RefreshCw,
-  Share2,
-  Trash2,
-  Upload,
+  ArrowLeft, ArrowRight, Check, ChevronRight, Download, File, FileImage,
+  FileText, Folder, FolderPlus, Grid2X2, Image as ImageIcon, MoreHorizontal,
+  Pencil, RefreshCw, Search, Share2, Trash2, Upload, X,
 } from "lucide-react";
-import { api, API_URL } from "@/lib/api";
+import { api, API_URL, ApiError } from "@/lib/api";
 
 type Entry = { name: string; path: string; type: "file" | "directory"; size: number };
 type SharedUser = { id: string; displayName: string; hostname: string };
 type Props = { onOpenFile?: (path: string, type: "image" | "text") => void };
+
 const imagePattern = /\.(avif|bmp|gif|jpe?g|png|svg|webp)$/i;
+const textPattern = /\.(txt|md|json|csv|xml|yaml|yml|log|ts|tsx|js|jsx|py|html|css)$/i;
+const formatSize = (bytes: number) => {
+  if (!Number.isFinite(bytes) || bytes <= 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let value = bytes / 1024;
+  let unit = 0;
+  while (value >= 1024 && unit < units.length - 1) { value /= 1024; unit += 1; }
+  return `${value.toFixed(value >= 10 ? 0 : 1)} ${units[unit]}`;
+};
+const isImage = (name: string) => imagePattern.test(name);
 
 export default function FileManager({ onOpenFile }: Props) {
   const [entries, setEntries] = useState<Entry[]>([]);
@@ -27,37 +33,53 @@ export default function FileManager({ onOpenFile }: Props) {
   const [shareOpen, setShareOpen] = useState(false);
   const [users, setUsers] = useState<SharedUser[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [folderName, setFolderName] = useState("");
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
   const [folderPickerMode, setFolderPickerMode] = useState(false);
   const [folderPickerRequester, setFolderPickerRequester] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const [busy, setBusy] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
-  const load = async (nextPath = path) => {
+  const load = useCallback(async (nextPath = path) => {
+    setLoading(true);
     setError(null);
     try {
-      const result = await api<{ entries: Entry[] }>(
-        `/api/storage/list?path=${encodeURIComponent(nextPath)}`,
+      const result = await api<{ entries: Entry[] }>(`/api/storage/list?path=${encodeURIComponent(nextPath)}`);
+      const sorted = [...(result.entries ?? [])].sort((a, b) =>
+        a.type === b.type ? a.name.localeCompare(b.name) : a.type === "directory" ? -1 : 1,
       );
-      setEntries(result.entries.sort((a, b) => a.name.localeCompare(b.name)));
+      setEntries(sorted);
       setPath(nextPath);
       localStorage.setItem("utoolity.files.path", nextPath);
       setSelected(null);
       setMenuOpen(false);
     } catch (loadError) {
-      setError(loadError instanceof Error ? loadError.message : "Unable to load files.");
+      const message = loadError instanceof Error ? loadError.message : "Unable to load files.";
+      setError(loadError instanceof ApiError && loadError.status === 401
+        ? "Your session is no longer authenticated. Close Files, sign in again, then reopen it."
+        : message);
+      setEntries([]);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [path]);
 
   useEffect(() => {
-    void load(localStorage.getItem("utoolity.files.path") ?? "server");
     const requester = localStorage.getItem("utoolity.files.folder-picker");
     if (requester) {
       setFolderPickerMode(true);
       setFolderPickerRequester(requester);
       localStorage.removeItem("utoolity.files.folder-picker");
+      void load("server");
+    } else {
+      void load(localStorage.getItem("utoolity.files.path") ?? "server");
     }
+  // Initial hydration only; load itself reads the path passed explicitly.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -73,88 +95,97 @@ export default function FileManager({ onOpenFile }: Props) {
       setFolderPickerRequester(requester);
       setSelected(null);
       setMenuOpen(false);
+      setQuery("");
+      void load("server");
     };
     window.addEventListener("utoolity:polygon-folder-request", openPicker);
     return () => window.removeEventListener("utoolity:polygon-folder-request", openPicker);
+  }, [load]);
+
+  useEffect(() => {
+    const closeMenu = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener("mousedown", closeMenu);
+    return () => document.removeEventListener("mousedown", closeMenu);
   }, []);
+
+  const visibleEntries = useMemo(() => {
+    const normalized = query.trim().toLowerCase();
+    return normalized ? entries.filter((entry) => entry.name.toLowerCase().includes(normalized)) : entries;
+  }, [entries, query]);
+
+  const withBusy = async (task: () => Promise<void>) => {
+    setBusy(true);
+    window.dispatchEvent(new Event("utoolity:work-started"));
+    try { await task(); }
+    finally {
+      setBusy(false);
+      window.dispatchEvent(new Event("utoolity:work-finished"));
+    }
+  };
 
   const createFolder = async () => {
     const name = folderName.trim();
-    if (!name) return;
-    window.dispatchEvent(new Event("utoolity:work-started"));
-    try {
-      await api("/api/storage/mkdir", {
-        method: "POST",
-        body: JSON.stringify({ path: `${path}/${name.trim()}` }),
-      });
-      await load();
-      setFolderName("");
-      setFolderDialogOpen(false);
-    } catch (folderError) {
-      setError(folderError instanceof Error ? folderError.message : "Unable to create folder.");
-    } finally {
-      window.dispatchEvent(new Event("utoolity:work-finished"));
+    if (!name || name === "." || name === ".." || name.includes("/") || name.includes("\\\\")) {
+      setError("Enter a valid folder name without path separators.");
+      return;
     }
+    await withBusy(async () => {
+      try {
+        await api("/api/storage/mkdir", { method: "POST", body: JSON.stringify({ path: `${path}/${name}` }) });
+        setFolderDialogOpen(false);
+        setFolderName("");
+        await load(path);
+      } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to create folder."); }
+    });
   };
 
   const upload = async (files: FileList | null) => {
     if (!files?.length) return;
-    window.dispatchEvent(new Event("utoolity:work-started"));
-    const form = new FormData();
-    const selectedFiles = Array.from(files);
-    const relativePaths = selectedFiles.map((file) =>
-      (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name,
-    );
-    const folderRoot = relativePaths
-      .map((relativePath) => relativePath.split("/")[0])
-      .find((root) => root && relativePaths.some((value) => value.startsWith(`${root}/`)));
-    form.append("relativePaths", JSON.stringify(relativePaths));
-    if (folderRoot) form.append("rootFolder", folderRoot);
-    selectedFiles.forEach((file, index) => {
-      form.append("files", file, relativePaths[index]);
+    await withBusy(async () => {
+      const form = new FormData();
+      const selectedFiles = Array.from(files);
+      const relativePaths = selectedFiles.map((file) =>
+        (file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name,
+      );
+      const folderRoot = relativePaths.map((value) => value.split("/")[0])
+        .find((root) => root && relativePaths.some((value) => value.startsWith(`${root}/`)));
+      form.append("relativePaths", JSON.stringify(relativePaths));
+      if (folderRoot) form.append("rootFolder", folderRoot);
+      selectedFiles.forEach((file, index) => form.append("files", file, relativePaths[index]));
+      form.append("path", path);
+      try {
+        await api("/api/storage/upload", { method: "POST", body: form });
+        await load(path);
+      } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to upload files."); }
+      finally {
+        if (inputRef.current) inputRef.current.value = "";
+        if (folderInputRef.current) folderInputRef.current.value = "";
+      }
     });
-    form.append("path", path);
-    try {
-      await api<{ entries: Entry[] }>("/api/storage/upload", {
-        method: "POST",
-        body: form,
-      });
-      await load();
-    } catch (uploadError) {
-      setError(uploadError instanceof Error ? uploadError.message : "Unable to upload.");
-    } finally {
-      window.dispatchEvent(new Event("utoolity:work-finished"));
-      if (inputRef.current) inputRef.current.value = "";
-      if (folderInputRef.current) folderInputRef.current.value = "";
-    }
   };
 
   const renameSelected = async () => {
     if (!selected) return;
-    const name = window.prompt("New name", selected.name);
-    if (!name?.trim()) return;
-    try {
-      await api("/api/storage/rename", {
-        method: "POST",
-        body: JSON.stringify({ path: selected.path, name: name.trim() }),
-      });
-      await load();
-    } catch (renameError) {
-      setError(renameError instanceof Error ? renameError.message : "Unable to rename.");
-    }
+    const name = window.prompt("Rename", selected.name);
+    if (!name?.trim() || name.trim() === selected.name) return;
+    await withBusy(async () => {
+      try {
+        await api("/api/storage/rename", { method: "POST", body: JSON.stringify({ path: selected.path, name: name.trim() }) });
+        await load(path);
+      } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to rename."); }
+    });
   };
 
   const deleteSelected = async () => {
-    if (!selected || !window.confirm(`Delete ${selected.name}?`)) return;
-    try {
-      await api("/api/storage/delete", {
-        method: "POST",
-        body: JSON.stringify({ path: selected.path }),
-      });
-      await load();
-    } catch (deleteError) {
-      setError(deleteError instanceof Error ? deleteError.message : "Unable to delete.");
-    }
+    if (!selected || !window.confirm(`Delete "${selected.name}"?${selected.type === "directory" ? " Its contents will also be deleted." : ""}`)) return;
+    await withBusy(async () => {
+      try {
+        await api("/api/storage/delete", { method: "POST", body: JSON.stringify({ path: selected.path }) });
+        await load(path);
+      } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to delete."); }
+    });
   };
 
   const showShare = async () => {
@@ -162,18 +193,20 @@ export default function FileManager({ onOpenFile }: Props) {
     setMenuOpen(false);
     try {
       const result = await api<{ users: SharedUser[] }>("/api/storage/users");
-      setUsers(result.users);
-    } catch (usersError) {
-      setError(usersError instanceof Error ? usersError.message : "Unable to load users.");
-    }
+      setUsers(result.users ?? []);
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "Unable to load users."); }
   };
 
-  const openSelected = () => {
-    if (!selected) return;
-    if (selected.type === "directory") {
-      void load(selected.path);
+  const openEntry = (entry: Entry) => {
+    setSelected(entry);
+    setMenuOpen(false);
+    if (entry.type === "directory") {
+      setQuery("");
+      void load(entry.path);
+    } else if (isImage(entry.name) || textPattern.test(entry.name)) {
+      onOpenFile?.(entry.path, isImage(entry.name) ? "image" : "text");
     } else {
-      onOpenFile?.(selected.path, imagePattern.test(selected.name) ? "image" : "text");
+      window.open(`${API_URL}/api/storage/download?path=${encodeURIComponent(entry.path)}`, "_blank", "noopener,noreferrer");
     }
   };
 
@@ -187,145 +220,122 @@ export default function FileManager({ onOpenFile }: Props) {
     setMenuOpen(false);
   };
 
+  const parentPath = path === "server" ? "server" : path.split("/").slice(0, -1).join("/") || "server";
+  const breadcrumbs = path.split("/").filter(Boolean);
+
   return (
-    <main className="flex h-full min-h-0 bg-background text-foreground">
-      <aside className="w-44 shrink-0 border-r border-border p-3">
-        <h2 className="mb-3 text-lg font-bold">Files</h2>
-        <button
-          type="button"
-          className="flex w-full items-center gap-2 rounded-xl bg-accent px-3 py-2 text-left font-semibold"
-          onClick={() => void load("server")}
-        >
-          <Folder className="size-4 text-primary" /> Server
-        </button>
-      </aside>
-
-      <section
-        className="min-w-0 flex-1 p-4"
-        onClick={(event) => {
-          if (event.target === event.currentTarget) void createFolder();
-        }}
-      >
-        <header className="mb-4 flex items-center justify-between gap-3">
+    <main className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
+      <header className="flex shrink-0 flex-wrap items-center gap-3 border-b border-border px-5 py-4">
+        <div className="flex min-w-0 flex-1 items-center gap-2">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary"><Folder className="size-5" /></span>
           <div className="min-w-0">
-            <p className="truncate font-semibold">{folderPickerMode ? "Select a folder for Polygon Studio" : "Server"}</p>
-            <p className="truncate text-xs text-muted-foreground">
-              {path === "server" ? "Your uploaded files" : path}
-            </p>
-          </div>
-          <div className="flex shrink-0 items-center gap-2">
-            <button
-              type="button"
-              onClick={() => void load()}
-              aria-label="Refresh folder"
-              title="Refresh folder"
-              className="flex size-9 items-center justify-center rounded-xl border border-border hover:bg-accent"
-            >
-              <RefreshCw className="size-4" />
-            </button>
-          </div>
-        </header>
-
-        {error && (
-          <p role="alert" className="mb-4 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm font-semibold text-destructive">
-            {error}
-          </p>
-        )}
-
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {entries.map((entry) => (
-            <div
-              key={entry.path}
-              className={`flex items-center gap-3 rounded-2xl border p-3 ${selected?.path === entry.path ? "border-primary bg-accent" : "border-border bg-card hover:bg-muted"}`}
-              onDoubleClick={() => {
-                setSelected(entry);
-                if (entry.type === "directory") void load(entry.path);
-                else onOpenFile?.(entry.path, imagePattern.test(entry.name) ? "image" : "text");
-              }}
-            >
-              <button type="button" className="flex min-w-0 flex-1 items-center gap-3 text-left" onClick={() => { setSelected(entry); setMenuOpen(true); }}>
-                {entry.type === "directory" ? <Folder className="size-6 text-primary" /> : <File className="size-6 text-primary" />}
-                <span className="min-w-0 truncate font-semibold">{entry.name}</span>
-              </button>
-              {entry.type === "file" && (
-                <a href={`${API_URL}/api/storage/download?path=${encodeURIComponent(entry.path)}`} aria-label={`Download ${entry.name}`}>
-                  <Download className="size-4" />
-                </a>
-              )}
-              <button type="button" aria-label={`Actions for ${entry.name}`} onClick={() => { setSelected(entry); setMenuOpen(true); }} className="rounded-lg p-1 hover:bg-accent">
-                <MoreHorizontal className="size-4" />
-              </button>
-            </div>
-          ))}
-          {entries.length === 0 && <p className="col-span-full rounded-2xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground" onClick={() => setFolderDialogOpen(true)}>This folder is empty. Click the blank space to create a folder.</p>}
-        </div>
-
-        <div className="mt-4 flex items-center justify-between gap-2 text-sm">
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => (folderPickerMode ? folderInputRef.current : inputRef.current)?.click()}
-              className="rounded-xl bg-primary px-3 py-2 text-sm font-bold text-primary-foreground"
-            >
-              <Upload className="mr-1 inline size-4" /> Upload
-            </button>
-          </div>
-          <input ref={inputRef} hidden type="file" multiple onChange={(event) => void upload(event.target.files)} />
-          <input
-            ref={folderInputRef}
-            hidden
-            type="file"
-            multiple
-            onChange={(event) => void upload(event.target.files)}
-          />
-          <div className="flex items-center gap-2">
-          <button type="button" disabled={path === "server"} onClick={() => void load(path.split("/").slice(0, -1).join("/") || "server")} className="rounded-xl border border-border px-3 py-2 font-semibold disabled:opacity-40">Back</button>
-          {selected && <span className="truncate text-muted-foreground">{selected.name}</span>}
+            <h2 className="truncate text-lg font-bold">{folderPickerMode ? "Choose a folder" : "Files"}</h2>
+            <p className="text-xs text-muted-foreground">{folderPickerMode ? "Select a folder to use in Polygon Studio" : `${entries.length} items`}</p>
           </div>
         </div>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setFolderDialogOpen(true)} disabled={busy} className="inline-flex h-9 items-center gap-2 rounded-xl border border-border px-3 text-sm font-semibold hover:bg-accent disabled:opacity-50"><FolderPlus className="size-4" /><span className="hidden sm:inline">New folder</span></button>
+          <button type="button" onClick={() => (folderPickerMode ? folderInputRef.current : inputRef.current)?.click()} disabled={busy} className="inline-flex h-9 items-center gap-2 rounded-xl bg-primary px-3 text-sm font-bold text-primary-foreground hover:opacity-90 disabled:opacity-50"><Upload className="size-4" />Upload</button>
+          <button type="button" onClick={() => void load(path)} aria-label="Refresh" title="Refresh" disabled={loading} className="flex size-9 items-center justify-center rounded-xl border border-border hover:bg-accent disabled:opacity-50"><RefreshCw className={`size-4 ${loading ? "animate-spin" : ""}`} /></button>
+        </div>
+        <input ref={inputRef} hidden type="file" multiple onChange={(event) => void upload(event.target.files)} />
+        <input ref={folderInputRef} hidden type="file" multiple onChange={(event) => void upload(event.target.files)} />
+      </header>
 
-        {folderDialogOpen && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-background/50 p-4 backdrop-blur-sm">
-            <form
-              className="w-full max-w-sm rounded-2xl border border-border bg-card p-4 shadow-2xl"
-              onSubmit={(event) => { event.preventDefault(); void createFolder(); }}
-            >
-              <h3 className="text-base font-bold">Create folder</h3>
-              <input
-                autoFocus
-                value={folderName}
-                onChange={(event) => setFolderName(event.target.value)}
-                placeholder="Folder name"
-                className="mt-3 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
-              />
-              <div className="mt-4 flex justify-end gap-2">
-                <button type="button" onClick={() => { setFolderDialogOpen(false); setFolderName(""); }} className="rounded-xl border border-border px-3 py-2 text-sm font-semibold">Cancel</button>
-                <button type="submit" disabled={!folderName.trim()} className="rounded-xl bg-primary px-3 py-2 text-sm font-bold text-primary-foreground disabled:opacity-40">Create</button>
-              </div>
-            </form>
+      <div className="flex shrink-0 items-center gap-1 border-b border-border px-5 py-3 text-sm">
+        <button type="button" onClick={() => void load("server")} className="rounded-lg px-2 py-1 font-semibold hover:bg-accent">Folder</button>
+        {breadcrumbs.filter((part) => part !== "server").map((part, index, parts) => {
+          const target = ["server", ...parts.slice(0, index + 1)].join("/");
+          return <span key={target} className="flex min-w-0 items-center gap-1"><ChevronRight className="size-3 shrink-0 text-muted-foreground" /><button type="button" onClick={() => void load(target)} className="max-w-44 truncate rounded-lg px-2 py-1 hover:bg-accent">{part}</button></span>;
+        })}
+        <div className="ml-auto flex min-w-0 items-center gap-2">
+          <div className="relative w-44 max-w-[45vw] sm:w-64">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search this folder" aria-label="Search files" className="h-9 w-full rounded-xl border border-border bg-muted/50 pl-9 pr-3 text-sm outline-none focus:border-primary" />
           </div>
-        )}
+        </div>
+      </div>
 
-        {menuOpen && selected && (
-          <div className="mt-3 flex flex-wrap gap-2 rounded-2xl border border-border bg-card p-3 shadow-lg">
-            {folderPickerMode && selected.type === "directory" && <button type="button" onClick={selectFolderForPolygon} className="rounded-xl bg-primary px-3 py-2 text-sm font-bold text-primary-foreground">Use this folder</button>}
-            <button type="button" onClick={openSelected} className="rounded-xl border border-border px-3 py-2 text-sm font-semibold">Open</button>
-            <button type="button" onClick={() => void renameSelected()} className="rounded-xl border border-border px-3 py-2 text-sm font-semibold"><Pencil className="mr-1 inline size-4" />Rename</button>
-            <button type="button" onClick={() => void deleteSelected()} className="rounded-xl border border-destructive/40 px-3 py-2 text-sm font-semibold text-destructive"><Trash2 className="mr-1 inline size-4" />Delete</button>
-            <button type="button" onClick={() => void showShare()} className="rounded-xl border border-border px-3 py-2 text-sm font-semibold"><Share2 className="mr-1 inline size-4" />Share</button>
-          </div>
-        )}
+      {error && <div role="alert" className="mx-5 mt-4 flex items-start gap-2 rounded-xl border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive"><span className="min-w-0 flex-1">{error}</span><button type="button" aria-label="Dismiss error" onClick={() => setError(null)}><X className="size-4" /></button></div>}
 
-        {shareOpen && (
-          <div className="mt-3 rounded-2xl border border-border bg-card p-4">
-            <div className="mb-2 flex items-center justify-between">
-              <h3 className="font-bold">Share with users</h3>
-              <button type="button" onClick={() => setShareOpen(false)} className="text-sm text-muted-foreground">Close</button>
-            </div>
-            {users.length ? <ul className="space-y-2">{users.map((user) => <li key={user.id} className="rounded-xl bg-muted px-3 py-2 text-sm font-semibold">{user.displayName}</li>)}</ul> : <p className="text-sm text-muted-foreground">No users present.</p>}
+      <section className="min-h-0 flex-1 overflow-y-auto p-5">
+        {loading ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {Array.from({ length: 8 }, (_, index) => <div key={index} className="h-36 animate-pulse rounded-2xl border border-border bg-muted/40" />)}
           </div>
+        ) : visibleEntries.length ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6">
+            {visibleEntries.map((entry) => {
+              const active = selected?.path === entry.path;
+              const directory = entry.type === "directory";
+              const image = !directory && isImage(entry.name);
+              return (
+                <article key={entry.path} onClick={() => { setSelected(entry); setMenuOpen(false); }} onDoubleClick={() => openEntry(entry)} className={`group relative min-w-0 overflow-hidden rounded-2xl border text-left transition-colors ${active ? "border-primary bg-primary/5 ring-1 ring-primary/40" : "border-border bg-card hover:border-foreground/20 hover:bg-muted/50"}`}>
+                  <button type="button" aria-label={`Open ${entry.name}`} onClick={() => openEntry(entry)} className="block w-full text-left">
+                    <div className={`flex h-28 items-center justify-center ${directory ? "bg-amber-500/[0.08]" : "bg-muted/40"}`}>
+                      {directory ? <Folder className="size-14 fill-amber-400/20 text-amber-400" strokeWidth={1.4} /> :
+                        image ? <ImageIcon className="size-12 text-emerald-500" strokeWidth={1.3} /> :
+                        textPattern.test(entry.name) ? <FileText className="size-12 text-sky-500" strokeWidth={1.3} /> :
+                        <File className="size-12 text-muted-foreground" strokeWidth={1.3} />}
+                    </div>
+                    <div className="min-w-0 px-3 pb-3 pt-2">
+                      <p className="truncate text-sm font-semibold" title={entry.name}>{entry.name}</p>
+                      <p className="mt-1 text-xs text-muted-foreground">{directory ? "Folder" : formatSize(entry.size) || "File"}</p>
+                    </div>
+                  </button>
+                  <div className="absolute right-2 top-2" ref={active && menuOpen ? menuRef : undefined}>
+                    <button type="button" aria-label={`More actions for ${entry.name}`} aria-expanded={active && menuOpen} onClick={(event) => { event.stopPropagation(); setSelected(entry); setMenuOpen((open) => active ? !open : true); }} className="flex size-8 items-center justify-center rounded-lg border border-border/70 bg-background/90 opacity-100 shadow-sm backdrop-blur hover:bg-accent sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100"><MoreHorizontal className="size-4" /></button>
+                    {active && menuOpen && (
+                      <div className="absolute right-0 top-9 z-30 w-48 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl">
+                        {folderPickerMode && directory && <button type="button" onClick={selectFolderForPolygon} className="flex w-full items-center gap-2 rounded-lg bg-primary/10 px-3 py-2 text-left text-sm font-semibold text-primary hover:bg-primary/15"><Check className="size-4" />Use this folder</button>}
+                        <button type="button" onClick={() => openEntry(entry)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"><ArrowRight className="size-4" />{directory ? "Open folder" : "Open file"}</button>
+                        {!directory && <a href={`${API_URL}/api/storage/download?path=${encodeURIComponent(entry.path)}`} onClick={() => setMenuOpen(false)} className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm hover:bg-accent"><Download className="size-4" />Download</a>}
+                        <button type="button" onClick={() => void renameSelected()} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"><Pencil className="size-4" />Rename</button>
+                        <button type="button" onClick={() => void showShare()} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"><Share2 className="size-4" />Share</button>
+                        <div className="my-1 border-t border-border" />
+                        <button type="button" onClick={() => void deleteSelected()} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-destructive hover:bg-destructive/10"><Trash2 className="size-4" />Delete</button>
+                      </div>
+                    )}
+                  </div>
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <button type="button" onClick={() => setFolderDialogOpen(true)} className="flex min-h-56 w-full flex-col items-center justify-center rounded-2xl border border-dashed border-border bg-muted/20 px-5 text-center transition-colors hover:border-primary/50 hover:bg-muted/40">
+            <span className="mb-3 flex size-14 items-center justify-center rounded-2xl bg-primary/10 text-primary"><FolderPlus className="size-7" /></span>
+            <span className="font-semibold">{query ? "No matching items" : "This folder is empty"}</span>
+            <span className="mt-1 text-sm text-muted-foreground">{query ? "Try another search." : "Create a folder or upload files to get started."}</span>
+          </button>
         )}
       </section>
+
+      <footer className="flex shrink-0 items-center justify-between gap-3 border-t border-border px-5 py-3 text-xs text-muted-foreground">
+        <span>{visibleEntries.length} {visibleEntries.length === 1 ? "item" : "items"}{selected ? ` · ${selected.name} selected` : ""}</span>
+        <div className="flex items-center gap-2">
+          {folderPickerMode && <button type="button" disabled={!selected || selected.type !== "directory"} onClick={selectFolderForPolygon} className="inline-flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-bold text-primary-foreground disabled:opacity-40"><Check className="size-4" />Select folder</button>}
+          <button type="button" disabled={path === "server" || loading} onClick={() => void load(parentPath)} className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm font-semibold hover:bg-accent disabled:opacity-40"><ArrowLeft className="size-4" />Back</button>
+        </div>
+      </footer>
+
+      {folderDialogOpen && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) { setFolderDialogOpen(false); setFolderName(""); } }}>
+          <form className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl" onSubmit={(event) => { event.preventDefault(); void createFolder(); }}>
+            <div className="mb-4 flex items-center gap-3"><span className="flex size-10 items-center justify-center rounded-xl bg-primary/10 text-primary"><FolderPlus className="size-5" /></span><div><h3 className="font-bold">Create folder</h3><p className="text-xs text-muted-foreground">In {path.split("/").at(-1) || "Folder"}</p></div></div>
+            <input autoFocus value={folderName} onChange={(event) => setFolderName(event.target.value)} placeholder="Folder name" maxLength={120} className="w-full rounded-xl border border-input bg-background px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring" />
+            <div className="mt-4 flex justify-end gap-2"><button type="button" onClick={() => { setFolderDialogOpen(false); setFolderName(""); }} className="rounded-xl border border-border px-3 py-2 text-sm font-semibold hover:bg-accent">Cancel</button><button type="submit" disabled={!folderName.trim() || busy} className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground disabled:opacity-40">{busy ? "Creating…" : "Create"}</button></div>
+          </form>
+        </div>
+      )}
+
+      {shareOpen && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setShareOpen(false); }}>
+          <section className="w-full max-w-sm rounded-2xl border border-border bg-card p-5 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between"><div><h3 className="font-bold">Share with users</h3><p className="text-xs text-muted-foreground">Available workspace users</p></div><button type="button" aria-label="Close share dialog" onClick={() => setShareOpen(false)} className="flex size-8 items-center justify-center rounded-lg hover:bg-accent"><X className="size-4" /></button></div>
+            {users.length ? <ul className="max-h-64 space-y-2 overflow-y-auto">{users.map((user) => <li key={user.id} className="rounded-xl bg-muted px-3 py-2"><p className="text-sm font-semibold">{user.displayName}</p><p className="text-xs text-muted-foreground">{user.hostname}</p></li>)}</ul> : <p className="rounded-xl border border-dashed border-border p-5 text-center text-sm text-muted-foreground">No other users are available.</p>}
+          </section>
+        </div>
+      )}
     </main>
   );
 }
