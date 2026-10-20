@@ -14,9 +14,13 @@ type ImageItem = {
 };
 
 type LabelMeShape = {
+  id?: string;
   label: string;
   points: [number, number][];
   shape_type: "polygon" | "rectangle";
+  createdBy?: string;
+  updatedBy?: string;
+  updatedAt?: number;
 };
 
 const tools: Array<{ id: "annotate" | "edit"; label: string; shortcut: string; icon: string }> = [
@@ -59,6 +63,9 @@ export default function BoundingBoxStudio() {
   const [annotationsLoaded, setAnnotationsLoaded] = useState(false);
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   const annotationRequestRef = useRef(0);
+  const suppressAnnotationSyncRef = useRef(false);
+  const currentActorRef = useRef("Unknown");
+  const remoteWriteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadImageAnnotations = async (image: ImageItem, folderPath: string) => {
     const requestId = ++annotationRequestRef.current;
@@ -78,11 +85,12 @@ export default function BoundingBoxStudio() {
         setImageDimensions({ width: document.imageWidth, height: document.imageHeight });
       }
       if (requestId !== annotationRequestRef.current) return;
+      suppressAnnotationSyncRef.current = true;
       loadAnnotations(
         (document.shapes ?? [])
           .filter((shape) => shape.shape_type === "rectangle" && shape.points.length === 2)
           .map((shape) => ({
-            id: crypto.randomUUID(),
+            id: shape.id ?? crypto.randomUUID(),
             label: shape.label,
             points: [
               { x: shape.points[0][0], y: shape.points[0][1] },
@@ -90,6 +98,9 @@ export default function BoundingBoxStudio() {
               { x: shape.points[1][0], y: shape.points[1][1] },
               { x: shape.points[0][0], y: shape.points[1][1] },
             ] as const,
+            createdBy: shape.createdBy,
+            updatedBy: shape.updatedBy,
+            updatedAt: shape.updatedAt,
           })),
       );
     } catch {
@@ -120,6 +131,73 @@ export default function BoundingBoxStudio() {
     setAnnotationsLoaded(false);
     localStorage.setItem("utoolity.bounding-box.folder", folderPath);
   };
+
+  useEffect(() => {
+    try {
+      const cached = localStorage.getItem("utoolity.cached-user");
+      if (cached) {
+        const user = JSON.parse(cached) as { displayName?: unknown };
+        if (typeof user.displayName === "string") currentActorRef.current = user.displayName;
+      }
+    } catch {
+      currentActorRef.current = localStorage.getItem("utoolity.authenticated-user-id") ?? "Unknown";
+    }
+    const receiveRemoteAnnotations = (event: Event) => {
+      const detail = (event as CustomEvent<{
+        ownerUserId?: string;
+        fromUserId?: string;
+        fromDisplayName?: string;
+        payload?: {
+          folderPath?: string;
+          imageName?: string;
+          imageWidth?: number;
+          imageHeight?: number;
+          annotations?: typeof polygons;
+        };
+      }>).detail;
+      const payload = detail?.payload;
+      if (!payload || !Array.isArray(payload.annotations)) return;
+      const localFolder = localStorage.getItem("utoolity.bounding-box.folder");
+      if (payload.folderPath && localFolder && payload.folderPath !== localFolder) return;
+      if (payload.imageName && currentImage?.name && payload.imageName !== currentImage.name) return;
+      if (!currentImage || selectedImageIndex === null) return;
+      suppressAnnotationSyncRef.current = true;
+      if (typeof payload.imageWidth === "number" && typeof payload.imageHeight === "number") {
+        setImageDimensions({ width: payload.imageWidth, height: payload.imageHeight });
+      }
+      loadAnnotations(payload.annotations);
+      if (remoteWriteTimerRef.current) clearTimeout(remoteWriteTimerRef.current);
+      remoteWriteTimerRef.current = setTimeout(() => {
+        remoteWriteTimerRef.current = null;
+        suppressAnnotationSyncRef.current = false;
+        void saveAnnotations().catch(() => undefined);
+      }, 160);
+    };
+    window.addEventListener("utoolity:annotation-state", receiveRemoteAnnotations);
+    return () => {
+      window.removeEventListener("utoolity:annotation-state", receiveRemoteAnnotations);
+      if (remoteWriteTimerRef.current) clearTimeout(remoteWriteTimerRef.current);
+    };
+  }, [currentImage, selectedImageIndex, loadAnnotations, saveAnnotations]);
+
+  useEffect(() => {
+    if (!annotationsLoaded || !currentImage || selectedImageIndex === null) return;
+    if (suppressAnnotationSyncRef.current) return;
+    const folderPath = localStorage.getItem("utoolity.bounding-box.folder");
+    if (!folderPath) return;
+    const timer = window.setTimeout(() => {
+      window.dispatchEvent(new CustomEvent("utoolity:annotation-state-outgoing", {
+        detail: {
+          folderPath,
+          imageName: currentImage.name,
+          imageWidth: imageDimensions.width,
+          imageHeight: imageDimensions.height,
+          annotations: polygons,
+        },
+      }));
+    }, 90);
+    return () => window.clearTimeout(timer);
+  }, [annotationsLoaded, currentImage, imageDimensions, polygons, selectedImageIndex]);
 
   useEffect(() => {
     const savedFolder = localStorage.getItem("utoolity.bounding-box.folder");
@@ -155,11 +233,14 @@ export default function BoundingBoxStudio() {
           const x = Math.min(...xs);
           const y = Math.min(...ys);
           return {
+            id: polygon.id,
             label: polygon.label,
             x,
             y,
             width: Math.max(...xs) - x,
             height: Math.max(...ys) - y,
+            createdBy: polygon.createdBy ?? currentActorRef.current,
+            updatedBy: polygon.updatedBy ?? currentActorRef.current,
           };
         }),
       }),
