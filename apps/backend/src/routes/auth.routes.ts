@@ -105,6 +105,7 @@ type CollaborationClient = {
 const collaborationClients = new Map<string, CollaborationClient>();
 const sharedSessions = new Map<string, Map<string, "view" | "editor">>();
 const pendingJoinRequests = new Map<string, string>();
+const liveWorkspaces = new Map<string, WorkspaceState>();
 function sendToUser(userId: string, payload: unknown): void {
   const message = JSON.stringify(payload);
   for (const client of collaborationClients.values()) {
@@ -740,7 +741,7 @@ export default async function authRoutes(app: FastifyInstance) {
             ownerUserId: userId,
             ownerDisplayName: client.displayName,
             permission,
-            workspace: workspaces[userId] ?? { openApps: [] },
+            workspace: liveWorkspaces.get(userId) ?? workspaces[userId] ?? { openApps: [] },
           });
           sendToUser(userId, {
             type: "shared-members",
@@ -911,8 +912,10 @@ export default async function authRoutes(app: FastifyInstance) {
               socket.close(1008, "A different user is assigned to this device");
               return;
             }
+            const snapshot = message.workspace as WorkspaceState;
+            liveWorkspaces.set(userId, snapshot);
             const workspaces = await readWorkspaces();
-            workspaces[userId] = message.workspace as WorkspaceState;
+            workspaces[userId] = snapshot;
             await writeFile(
               workspacesFilePath,
               `${JSON.stringify({ workspaces }, null, 2)}\n`,
