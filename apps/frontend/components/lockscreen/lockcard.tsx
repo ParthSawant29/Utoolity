@@ -147,16 +147,11 @@ function Lockcard({
       try {
         // api() sends the stable device ID. The backend remains authoritative.
         let resolvedUser: LockProfileResponse["user"];
-        try {
-          const response = await api<LockProfileResponse>("/api/lockscreen/me");
-          resolvedUser = response.user;
-        } catch (deviceLookupError) {
-          if (!configuredHostname) throw deviceLookupError;
-          const fallback = await api<LockProfileResponse>(
-            `/api/lockscreen/me?hostname=${encodeURIComponent(configuredHostname)}`,
-          );
-          resolvedUser = fallback.user;
-        }
+        const profilePath = configuredHostname
+          ? `/api/lockscreen/me?hostname=${encodeURIComponent(configuredHostname)}`
+          : "/api/lockscreen/me";
+        const response = await api<LockProfileResponse>(profilePath);
+        resolvedUser = response.user;
         if (!active) return;
         if (!resolvedUser) throw new Error("The backend returned an empty profile.");
 
