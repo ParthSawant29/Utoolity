@@ -582,7 +582,7 @@ export default async function authRoutes(app: FastifyInstance) {
       role: session.role ?? "intern",
     };
     collaborationClients.set(clientKey, client);
-    void readUsers().then((users) => {
+    void readUsers().then(async (users) => {
       const user = findById(users, userId);
       if (user) {
         client.displayName = user.displayName;
@@ -643,7 +643,7 @@ export default async function authRoutes(app: FastifyInstance) {
       deviceInactivityTimers.set(timerKey, timer);
     };
 
-    socket.on("message", (raw: Buffer | ArrayBuffer | Buffer[]) => {
+    socket.on("message", async (raw: Buffer | ArrayBuffer | Buffer[]) => {
       let message: {
         type?: unknown;
         deviceId?: unknown;
