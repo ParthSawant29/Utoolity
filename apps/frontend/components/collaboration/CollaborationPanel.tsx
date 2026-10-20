@@ -29,8 +29,6 @@ export default function CollaborationPanel() {
   const socketRef = useRef<WebSocket | null>(null);
   const pcsRef = useRef(new Map<string, RTCPeerConnection>());
   const streamsRef = useRef(new Map<string, MediaStream>());
-  const lastCursorRef = useRef(0);
-  const peersRef = useRef<Peer[]>([]);
 
   const send = useCallback((value: unknown) => {
     const socket = socketRef.current;
@@ -89,7 +87,6 @@ export default function CollaborationPanel() {
             typeof (item as Peer).displayName === "string" &&
             (item as Peer).userId !== currentUserId,
           );
-          peersRef.current = next;
           setPeers(next);
           return;
         }
