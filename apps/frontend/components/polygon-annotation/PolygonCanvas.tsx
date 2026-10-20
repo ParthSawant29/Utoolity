@@ -14,6 +14,7 @@ import type {
 
 type PolygonCanvasProps = {
   imageSrc: string | null;
+  interactionDisabled?: boolean;
   points: Point[];
   polygons: PolygonAnnotation[];
   tool: AnnotationTool;
@@ -45,6 +46,7 @@ const POLYGON_FILL = "rgba(34, 197, 94, 0.3)";
 
 export function PolygonCanvas({
   imageSrc,
+  interactionDisabled = false,
   points,
   polygons,
   tool,
@@ -649,7 +651,7 @@ export function PolygonCanvas({
         return;
       }
 
-      if (event.button !== 0) {
+      if (event.button !== 0 || interactionDisabled) {
         return;
       }
 
@@ -750,6 +752,7 @@ export function PolygonCanvas({
       screenToImage,
       tool,
       removeMode,
+      interactionDisabled,
     ],
   );
 
