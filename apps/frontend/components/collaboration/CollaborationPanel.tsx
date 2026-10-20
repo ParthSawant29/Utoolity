@@ -157,6 +157,22 @@ export default function CollaborationPanel() {
   }, [loadUsers]);
 
   useEffect(() => {
+    const sendCommand = (event: Event) => {
+      const detail = (event as CustomEvent<{ command?: string; payload?: unknown }>).detail;
+      if (!detail?.command || !joinedOwner) return;
+      if (joinedOwner.permission !== "editor") return;
+      send({ type: "shared-workspace-command", command: detail.command, payload: detail.payload, deviceId: getDeviceId() });
+    };
+    const leave = () => leaveSession();
+    window.addEventListener("utoolity:shared-command-outgoing", sendCommand);
+    window.addEventListener("utoolity:leave-shared-session", leave);
+    return () => {
+      window.removeEventListener("utoolity:shared-command-outgoing", sendCommand);
+      window.removeEventListener("utoolity:leave-shared-session", leave);
+    };
+  }, [joinedOwner, send]);
+
+  useEffect(() => {
     let lastSent = 0;
     const handlePointer = (event: MouseEvent) => {
       const now = Date.now();
