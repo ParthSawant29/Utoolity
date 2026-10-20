@@ -63,14 +63,7 @@ function getGreeting(date: Date): string {
   if (hour < 20) return "GOOD EVENING";
   return "CALLING IT A DAY?";
 }
-function getInitialProfile(hostname = ""): LockProfile {
-  return {
-    id: "unknown",
-    hostname,
-    displayName: hostname ? "Loading profile..." : "Sign in to Utoolity",
-    locked: true,
-  };
-}
+
 function Lockcard({
   socketDisconnected,
   initialAuthenticated = false,
@@ -167,7 +160,6 @@ function Lockcard({
     let active = true;
 
     async function loadProfile() {
-      let authenticatedUser: LockProfileResponse["user"] | undefined;
       let hasAuthenticatedSession = initialAuthenticated;
 
       // Home already verifies /api/auth/me before rendering this lock screen.
@@ -182,18 +174,7 @@ function Lockcard({
       const savedHostname = window.localStorage
         .getItem(HOSTNAME_STORAGE_KEY)
         ?.trim();
-      const configuredHostname = authenticatedUser?.hostname || savedHostname || "";
-
-      if (authenticatedUser) {
-        window.localStorage.setItem("utoolity.cached-user", JSON.stringify(authenticatedUser));
-        setProfile({ ...authenticatedUser, locked: true });
-        setHostname(authenticatedUser.hostname);
-        window.localStorage.setItem("utoolity.authenticated-user-id", authenticatedUser.id);
-        window.localStorage.setItem(HOSTNAME_STORAGE_KEY, authenticatedUser.hostname);
-        setError("");
-        setLoadingProfile(false);
-        return;
-      }
+      const configuredHostname = savedHostname || "";
 
       setHostname(configuredHostname);
       try {
