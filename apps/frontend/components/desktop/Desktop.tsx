@@ -332,7 +332,8 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
     if (action === "settings") {
       openApp("settings");
     } else if (action === "lock") {
-      onLock?.();
+      // Explicit locking is available only from the system tray.
+      return;
     } else if (action === "fullscreen") {
       const request = document.documentElement.requestFullscreen;
       if (document.fullscreenElement) {
