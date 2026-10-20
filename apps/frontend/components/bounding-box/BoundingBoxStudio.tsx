@@ -61,12 +61,29 @@ export default function BoundingBoxStudio() {
     canUndo,
   } = useBoundingBoxAnnotation();
   const [annotationsLoaded, setAnnotationsLoaded] = useState(false);
+  const [collaborationPermission, setCollaborationPermission] = useState<"owner" | "view" | "editor">("owner");
   const [imageDimensions, setImageDimensions] = useState({ width: 0, height: 0 });
   const annotationRequestRef = useRef(0);
   const suppressAnnotationSyncRef = useRef(false);
   const currentActorRef = useRef("Unknown");
   const remoteWriteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadImageAnnotationsRef = useRef<(image: ImageItem, folderPath: string) => Promise<void>>(async () => undefined);
+
+  useEffect(() => {
+    const applyPermission = (event: Event) => {
+      const permission = (event as CustomEvent<{ permission?: "view" | "editor" }>).detail?.permission;
+      setCollaborationPermission(permission === "view" || permission === "editor" ? permission : "owner");
+    };
+    const endSession = () => setCollaborationPermission("owner");
+    window.addEventListener("utoolity:shared-session-changed", applyPermission);
+    window.addEventListener("utoolity:shared-permission-changed", applyPermission);
+    window.addEventListener("utoolity:shared-session-ended", endSession);
+    return () => {
+      window.removeEventListener("utoolity:shared-session-changed", applyPermission);
+      window.removeEventListener("utoolity:shared-permission-changed", applyPermission);
+      window.removeEventListener("utoolity:shared-session-ended", endSession);
+    };
+  }, []);
 
   const loadImageAnnotations = async (image: ImageItem, folderPath: string) => {
     const requestId = ++annotationRequestRef.current;
@@ -165,6 +182,7 @@ export default function BoundingBoxStudio() {
       : null;
 
   const saveAnnotations = useCallback(async () => {
+    if (collaborationPermission === "view") return;
     const folder = localStorage.getItem("utoolity.bounding-box.folder");
     if (!folder || !currentImage || imageDimensions.width <= 0 || imageDimensions.height <= 0) return;
     await api("/api/tools/bounding-box/annotations", {
@@ -192,7 +210,7 @@ export default function BoundingBoxStudio() {
         }),
       }),
     });
-  }, [currentImage, imageDimensions, polygons]);
+  }, [collaborationPermission, currentImage, imageDimensions, polygons]);
 
   useEffect(() => {
     try {
@@ -547,6 +565,7 @@ export default function BoundingBoxStudio() {
           <div className="absolute inset-0">
             <BoundingBoxCanvas
               imageSrc={currentImage?.url ?? null}
+              interactionDisabled={collaborationPermission === "view"}
               points={points}
               polygons={polygons}
               tool={tool}
