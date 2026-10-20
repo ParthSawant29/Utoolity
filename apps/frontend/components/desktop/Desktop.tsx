@@ -11,6 +11,7 @@ import DesktopApps from "./DesktopApps";
 import { WALLPAPERS, normalizeWallpaperId, readWallpaperPreference, saveWallpaperPreference } from "../../lib/wallpapers";
 import ToolContent, { appTitles, type DesktopAppId } from "./ToolContent";
 import type { WindowSummary } from "./SystemTray/AllWindows";
+import CollaborationPanel from "../collaboration/CollaborationPanel";
 
 type DesktopProps = {
   onSleep?: () => void;
@@ -323,6 +324,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
         </DesktopWindow>
         );
       })}
+      <CollaborationPanel />
       <DesktopContextMenu
         open={menu !== null}
         x={menu?.x ?? 0}
