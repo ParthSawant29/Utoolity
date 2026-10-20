@@ -6,7 +6,11 @@ import { cp, mkdir, readdir, rename, rm, stat, statfs, writeFile, readFile } fro
 import path from "node:path";
 
 type SessionRequest = FastifyRequest & {
-  session: { userId?: string };
+  session: {
+    userId?: string;
+    collaborationOwnerUserId?: string;
+    collaborationPermission?: "view" | "editor";
+  };
 };
 
 type UserRecord = { id: string; hostname: string; displayName: string };
@@ -48,12 +52,20 @@ function requestedTarget(user: UserRecord, requested: string) {
 }
 
 async function getUser(request: FastifyRequest): Promise<UserRecord> {
-  const userId = (request as SessionRequest).session.userId;
+  const session = (request as SessionRequest).session;
+  const userId = session.collaborationOwnerUserId ?? session.userId;
   if (!userId) throw new Error("Not authenticated.");
   const raw = await import("../data/users.json", { with: { type: "json" } });
   const user = (raw.default.users as UserRecord[]).find((candidate) => candidate.id === userId);
   if (!user) throw new Error("Session user no longer exists.");
   return user;
+}
+
+function requireWorkspaceEditor(request: FastifyRequest): void {
+  const session = (request as SessionRequest).session;
+  if (session.collaborationOwnerUserId && session.collaborationPermission !== "editor") {
+    throw new Error("View-only collaborators cannot modify shared workspace data.");
+  }
 }
 
 export default async function storageRoutes(app: FastifyInstance) {
@@ -121,6 +133,7 @@ export default async function storageRoutes(app: FastifyInstance) {
 
   app.post<{ Body: { path?: string } }>("/storage/upload", async (request, reply) => {
     try {
+      requireWorkspaceEditor(request);
       const user = await getUser(request);
       const root = userRoot(user);
       await mkdir(root, { recursive: true });
@@ -182,6 +195,7 @@ export default async function storageRoutes(app: FastifyInstance) {
 
   app.post<{ Body: PathBody }>("/storage/extract", async (request, reply) => {
     try {
+      requireWorkspaceEditor(request);
       const user = await getUser(request);
       const archivePath = requestedTarget(user, request.body?.path ?? "");
       const root = userRoot(user);
@@ -232,6 +246,7 @@ export default async function storageRoutes(app: FastifyInstance) {
 
   app.post<{ Body: { path?: string } }>("/storage/delete", async (request, reply) => {
     try {
+      requireWorkspaceEditor(request);
       const user = await getUser(request);
       const protectedRoot = userRoot(user);
       const target = requestedTarget(user, request.body?.path ?? "");
@@ -275,6 +290,7 @@ export default async function storageRoutes(app: FastifyInstance) {
 
   app.put<{ Body: { path?: string; content?: string } }>("/storage/content", async (request, reply) => {
     try {
+      requireWorkspaceEditor(request);
       await getUser(request);
       const target = resolveInside(storageRoot, request.body?.path ?? "");
       if (typeof request.body?.content !== "string" || request.body.content.length > 5_000_000) {
@@ -306,6 +322,7 @@ export default async function storageRoutes(app: FastifyInstance) {
 
   app.put<{ Params: { tool: string }; Body: { progress?: Record<string, unknown> } }>("/storage/progress/:tool", async (request, reply) => {
     try {
+      requireWorkspaceEditor(request);
       const user = await getUser(request);
       const progress = request.body?.progress;
       if (!progress || typeof progress !== "object") return reply.code(400).send({ message: "Invalid progress payload." });
@@ -320,6 +337,7 @@ export default async function storageRoutes(app: FastifyInstance) {
 
   app.post<{ Body: PathBody }>("/storage/mkdir", async (request, reply) => {
     try {
+      requireWorkspaceEditor(request);
       const user = await getUser(request);
       const target = requestedTarget(user, request.body?.path ?? "server");
       await mkdir(target, { recursive: true });
@@ -332,6 +350,7 @@ export default async function storageRoutes(app: FastifyInstance) {
 
   app.post<{ Body: PathBody }>("/storage/rename", async (request, reply) => {
     try {
+      requireWorkspaceEditor(request);
       await getUser(request);
       const source = resolveInside(storageRoot, request.body?.path ?? "");
       const name = path.basename(request.body?.name ?? "");
@@ -347,6 +366,7 @@ export default async function storageRoutes(app: FastifyInstance) {
   for (const operation of ["copy", "move"] as const) {
     app.post<{ Body: PathBody }>(`/storage/${operation}`, async (request, reply) => {
       try {
+        requireWorkspaceEditor(request);
         await getUser(request);
         const source = resolveInside(storageRoot, request.body?.path ?? "");
         const destination = resolveInside(storageRoot, request.body?.destination ?? "");
