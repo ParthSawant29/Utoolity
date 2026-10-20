@@ -685,6 +685,16 @@ export default async function authRoutes(app: FastifyInstance) {
 
       if (message.type === "join-request") {
         if (typeof message.targetUserId !== "string" || message.targetUserId === userId) return;
+        const configuredUsers = await readUsers().catch(() => []);
+        const configuredTarget = configuredUsers.some((candidate) => candidate.id === message.targetUserId && candidate.id !== "guest-intern");
+        if (!configuredTarget) {
+          socket.send(JSON.stringify({ type: "join-request-result", targetUserId: message.targetUserId, status: "not-found" }));
+          return;
+        }
+        if (client.joinedOwnerUserId || sharedSessions.has(userId)) {
+          socket.send(JSON.stringify({ type: "join-request-result", targetUserId: message.targetUserId, status: "already-in-session" }));
+          return;
+        }
         const ownerOnline = [...collaborationClients.values()].some((target) => target.userId === message.targetUserId && target.socket.readyState === 1);
         if (!ownerOnline) {
           socket.send(JSON.stringify({ type: "join-request-result", targetUserId: message.targetUserId, status: "offline" }));
@@ -770,7 +780,12 @@ export default async function authRoutes(app: FastifyInstance) {
         if (!members?.has(message.targetUserId)) return;
         members.set(message.targetUserId, message.permission);
         for (const target of collaborationClients.values()) {
-          if (target.userId === message.targetUserId && target.joinedOwnerUserId === userId) target.permission = message.permission;
+          if (target.userId === message.targetUserId && target.joinedOwnerUserId === userId) {
+            target.permission = message.permission;
+            const targetSession = getSession(target.request);
+            targetSession.collaborationPermission = message.permission;
+            void saveSession(target.request);
+          }
         }
         sendToUser(message.targetUserId, { type: "shared-permission", ownerUserId: userId, permission: message.permission });
         return;
@@ -778,7 +793,8 @@ export default async function authRoutes(app: FastifyInstance) {
 
       if (message.type === "shared-workspace-command") {
         const ownerUserId = client.joinedOwnerUserId;
-        if (!ownerUserId || client.permission !== "editor") return;
+        const allowedCommands = new Set(["open-app", "close-app", "focus-app", "window-state", "workspace"]);
+        if (!ownerUserId || client.permission !== "editor" || typeof message.command !== "string" || !allowedCommands.has(message.command)) return;
         sendToUser(ownerUserId, {
           type: "shared-workspace-command",
           fromUserId: userId,
