@@ -13,3 +13,9 @@ export function saveWallpaperPreference(v:string){const id=normalizeWallpaperId(
 export function readWallpaperPreference(){try{const v=localStorage.getItem(WALLPAPER_STORAGE_KEY);if(v)return normalizeWallpaperId(v);const c=document.cookie.split("; ").find(x=>x.startsWith(WALLPAPER_STORAGE_KEY+"="))?.split("=").slice(1).join("=");return normalizeWallpaperId(c?decodeURIComponent(c):null);}catch{return DEFAULT_WALLPAPER_ID;}}
 const pending=new Map<string,Promise<void>>();
 export function preloadWallpaper(url:string){const old=pending.get(url);if(old)return old;const p=new Promise<void>((resolve,reject)=>{if(/\.(mp4|webm|ogv|mov)(?:$|\?)/i.test(url)){const v=document.createElement("video");v.preload="auto";v.muted=true;v.onloadeddata=()=>resolve();v.onerror=()=>reject(new Error("Wallpaper load failed"));v.src=url;v.load();}else{const i=new Image();i.decoding="async";i.onload=()=>resolve();i.onerror=()=>reject(new Error("Wallpaper load failed"));i.src=url;}}).catch(e=>{pending.delete(url);throw e;});pending.set(url,p);return p;}
+
+// Compatibility for the lock screen: this reads the generated in-memory catalog,
+// never the old runtime directory-scanning API route.
+export async function getWallpapers() {
+  return WALLPAPERS.map((wallpaper) => ({ ...wallpaper, file: wallpaper.id }));
+}
