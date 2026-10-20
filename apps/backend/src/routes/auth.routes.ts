@@ -780,9 +780,6 @@ export default async function authRoutes(app: FastifyInstance) {
           candidate.macId.toLowerCase() === deviceId.toLowerCase()
         );
       }
-      if (!user && deviceId) {
-        user = users.find((candidate) => candidate.macId.toLowerCase() === deviceId.toLowerCase());
-      }
       if (!user && hostname) user = findByHostname(users, hostname);
 
       // Unassigned devices are valid guest workstations, not profile-load failures.
