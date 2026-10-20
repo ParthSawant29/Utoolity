@@ -7,8 +7,8 @@ const mode=():Mode=>document.documentElement.classList.contains("dark")?"dark":"
 export default function DesktopBackground(){
  const [active,setActive]=useState<Layer|null>(null),[previous,setPrevious]=useState<Layer|null>(null),[visible,setVisible]=useState(false),[theme,setTheme]=useState<Mode>("dark");
  useEffect(()=>{let cancelled=false,key=0,request=0,current:Layer|null=null;
- const apply=async(id:string,t=mode())=>{const token=++request,w=getWallpaper(id),url=getWallpaperUrl(w,t);setTheme(t);if(current?.url===url)return;let next=w,nextUrl=url;
- try{await preloadWallpaper(url);}catch{if(cancelled||token!==request)return;next=getWallpaper(DEFAULT_WALLPAPER_ID);nextUrl=getWallpaperUrl(next,t);if(current?.url===nextUrl)return;try{await preloadWallpaper(nextUrl);}catch{return;}}
+ const apply=async(id:string,t=mode())=>{const token=++request,w=getWallpaper(id),url=getWallpaperUrl(w,t);setTheme(t);if(current?.url===url)return;let next=w,nextUrl=url,fallbackUsed=false;
+ try{await preloadWallpaper(url);}catch{if(cancelled||token!==request)return;next=getWallpaper(DEFAULT_WALLPAPER_ID);nextUrl=getWallpaperUrl(next,t);fallbackUsed=true;if(current?.url===nextUrl)return;try{await preloadWallpaper(nextUrl);}catch{return;}}
  if(cancelled||token!==request||getWallpaperUrl(getWallpaper(readWallpaperPreference()),mode())!==nextUrl)return;
  const layer={wallpaper:next,url:nextUrl,key:++key};setPrevious(current);current=layer;setVisible(false);setActive(layer);};
  const change=(e:Event)=>void apply((e as CustomEvent<string>).detail||readWallpaperPreference());
