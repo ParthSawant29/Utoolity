@@ -66,10 +66,16 @@ function getSession(request: FastifyRequest): AuthSession {
 }
 
 async function readSessions(): Promise<Record<string, SessionRecord>> {
-  const raw = JSON.parse(await readFile(sessionsFilePath, "utf8")) as {
-    sessions?: Record<string, SessionRecord>;
-  };
-  return raw.sessions ?? {};
+  try {
+    const text = (await readFile(sessionsFilePath, "utf8")).trim();
+    if (!text) return {};
+    const raw = JSON.parse(text) as { sessions?: Record<string, SessionRecord> };
+    return raw.sessions ?? {};
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
+    // Empty or malformed legacy state must not make every lock-screen request fail.
+    return {};
+  }
 }
 
 async function writeSessions(sessions: Record<string, SessionRecord>): Promise<void> {
@@ -156,10 +162,14 @@ async function readUsers(): Promise<InternUser[]> {
 }
 
 async function readWorkspaces(): Promise<Record<string, WorkspaceState>> {
-  const raw = JSON.parse(await readFile(workspacesFilePath, "utf8")) as {
-    workspaces?: Record<string, WorkspaceState>;
-  };
-  return raw.workspaces ?? {};
+  try {
+    const text = (await readFile(workspacesFilePath, "utf8")).trim();
+    if (!text) return {};
+    const raw = JSON.parse(text) as { workspaces?: Record<string, WorkspaceState> };
+    return raw.workspaces ?? {};
+  } catch {
+    return {};
+  }
 }
 
 async function writeUsers(users: InternUser[]): Promise<void> {
@@ -653,9 +663,13 @@ export default async function authRoutes(app: FastifyInstance) {
         });
       }
 
+      // Unassigned devices are valid guest workstations, not profile-load failures.
+      // The device ID is only used to resolve a prior assignment; it is not an identity
+      // credential and must never grant access to a protected API by itself.
+      if (!user) user = findById(users, "guest-intern");
       if (!user) {
-        return reply.code(404).send({
-          message: "This device has not been assigned to an account yet.",
+        return reply.code(500).send({
+          message: "The guest profile is missing from users.json.",
         });
       }
 
