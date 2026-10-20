@@ -1,5 +1,7 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
 import { createReadStream } from "node:fs";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { cp, mkdir, readdir, rename, rm, stat, writeFile, readFile } from "node:fs/promises";
 import path from "node:path";
 
@@ -11,6 +13,7 @@ type UserRecord = { id: string; hostname: string; displayName: string };
 type PathBody = { path?: string; destination?: string; name?: string };
 
 const storageRoot = path.resolve(process.env.STORAGE_ROOT ?? path.join(process.cwd(), "data"));
+const execFileAsync = promisify(execFile);
 
 function safeSegment(value: string) {
   return value.replace(/[^a-zA-Z0-9._-]/g, "-").replace(/^-+|-+$/g, "") || "user";
@@ -151,6 +154,57 @@ export default async function storageRoutes(app: FastifyInstance) {
       request.log.error(error, "Storage upload failed");
       const message = error instanceof Error ? error.message : "Unable to upload.";
       return reply.code(message === "Not authenticated." ? 401 : 400).send({ message });
+    }
+  });
+
+
+  app.post<{ Body: PathBody }>("/storage/extract", async (request, reply) => {
+    try {
+      const user = await getUser(request);
+      const archivePath = requestedTarget(user, request.body?.path ?? "");
+      const root = userRoot(user);
+      if (archivePath !== root && !archivePath.startsWith(`${root}${path.sep}`)) {
+        return reply.code(400).send({ message: "Archive path is outside your storage folder." });
+      }
+      const details = await stat(archivePath);
+      if (!details.isFile() || path.extname(archivePath).toLowerCase() !== ".zip") {
+        return reply.code(400).send({ message: "Select a ZIP archive to extract." });
+      }
+
+      // Inspect archive paths before extraction to prevent zip-slip traversal.
+      const { stdout: listing } = await execFileAsync("unzip", ["-Z1", archivePath], { maxBuffer: 10 * 1024 * 1024 });
+      const names = listing.split(/\r?\n/).filter(Boolean);
+      if (!names.length) return reply.code(400).send({ message: "This ZIP archive is empty." });
+      for (const name of names) {
+        const normalized = name.replaceAll("\\", "/");
+        if (normalized.startsWith("/") || /^[a-zA-Z]:/.test(normalized) ||
+            normalized.split("/").some((segment) => segment === "..")) {
+          return reply.code(400).send({ message: "This archive contains an unsafe file path." });
+        }
+      }
+
+      const destination = path.join(path.dirname(archivePath), path.basename(archivePath, path.extname(archivePath)));
+      if (destination === root || !destination.startsWith(`${root}${path.sep}`)) {
+        return reply.code(400).send({ message: "Invalid extraction destination." });
+      }
+      try {
+        await stat(destination);
+        return reply.code(409).send({ message: "A folder with the archive name already exists." });
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
+      await mkdir(destination, { recursive: true });
+      try {
+        await execFileAsync("unzip", ["-o", archivePath, "-d", destination], { maxBuffer: 10 * 1024 * 1024 });
+      } catch (error) {
+        await rm(destination, { recursive: true, force: true });
+        throw error;
+      }
+      return { success: true, destination: path.relative(storageRoot, destination) };
+    } catch (error) {
+      request.log.error(error, "ZIP extraction failed");
+      const message = error instanceof Error ? error.message : "Unable to extract archive.";
+      return reply.code(storageErrorStatus(error)).send({ message });
     }
   });
 
