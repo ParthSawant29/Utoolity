@@ -80,7 +80,7 @@ export default function CollaborationPanel() {
           return;
         }
         if (data.type === "join-request-result") {
-          setNotice(data.status === "pending" ? "Join request sent. Waiting for approval." : data.status === "not-found" ? "That profile no longer exists." : data.status === "already-in-session" ? "Leave your current session before requesting another." : "That user is currently offline.");
+          setNotice(data.status === "pending" ? "Join request sent. Waiting for approval." : data.status === "not-found" ? "That profile no longer exists." : data.status === "already-in-session" ? "Leave your current session before requesting another." : data.status === "target-in-session" ? "That user is already sharing another desktop." : "That user is currently offline.");
           return;
         }
         if (data.type === "join-declined") {
