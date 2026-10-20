@@ -27,31 +27,31 @@ export const GENERATED_WALLPAPERS: readonly Wallpaper[] = [
   },
   {
     "id": "Live/abstract.mp4",
-    "name": "abstract",
+    "name": "Abstract",
     "kind": "live",
     "url": "/wallpapers/Live/abstract.mp4"
   },
   {
     "id": "Live/code_fall.mp4",
-    "name": "code fall",
+    "name": "Code Fall",
     "kind": "live",
     "url": "/wallpapers/Live/code_fall.mp4"
   },
   {
     "id": "Live/oceanic.mp4",
-    "name": "oceanic",
+    "name": "Oceanic",
     "kind": "live",
     "url": "/wallpapers/Live/oceanic.mp4"
   },
   {
     "id": "Live/pins.mp4",
-    "name": "pins",
+    "name": "Pins",
     "kind": "live",
     "url": "/wallpapers/Live/pins.mp4"
   },
   {
     "id": "Live/polished.mp4",
-    "name": "polished",
+    "name": "Polished",
     "kind": "live",
     "url": "/wallpapers/Live/polished.mp4"
   }
