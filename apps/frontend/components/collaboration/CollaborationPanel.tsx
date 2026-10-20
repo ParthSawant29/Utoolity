@@ -177,6 +177,16 @@ export default function CollaborationPanel() {
   }, [loadUsers]);
 
   useEffect(() => {
+    const sendWorkspace = (event: Event) => {
+      const detail = (event as CustomEvent<unknown>).detail;
+      if (!joinedOwner || joinedOwner.permission !== "editor") return;
+      send({ type: "shared-workspace-state", workspace: detail, deviceId: getDeviceId() });
+    };
+    window.addEventListener("utoolity:workspace-state-changed", sendWorkspace);
+    return () => window.removeEventListener("utoolity:workspace-state-changed", sendWorkspace);
+  }, [joinedOwner, send]);
+
+  useEffect(() => {
     const sendCommand = (event: Event) => {
       const detail = (event as CustomEvent<{ command?: string; payload?: unknown }>).detail;
       if (!detail?.command || !joinedOwner) return;
