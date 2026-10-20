@@ -9,6 +9,7 @@ type InternUser = {
   displayName: string;
   password: string;
   macId: string;
+  deviceId?: string;
   role: "intern" | "admin";
   preferences?: Record<string, string>;
 };
@@ -350,9 +351,13 @@ export default async function authRoutes(app: FastifyInstance) {
 
       try {
         const users = await readUsers();
-        const user = findByHostname(users, request.body.hostname);
+        const deviceId = getDeviceId(request, "");
+        const assignedUser = deviceId
+          ? users.find((candidate) => candidate.deviceId === deviceId)
+          : undefined;
+        const user = assignedUser ?? findByHostname(users, request.body.hostname);
 
-        if (!user || user.password !== request.body.password) {
+        if (!user || user.hostname.toLowerCase() !== request.body.hostname.trim().toLowerCase() || user.password !== request.body.password) {
           return reply.code(401).send({
             message: "Invalid hostname or password.",
           });
@@ -752,58 +757,40 @@ export default async function authRoutes(app: FastifyInstance) {
     const hostname = request.query.hostname?.trim();
 
     if (hostname && hostname.length > 255) {
-      return reply.code(400).send({
-        message: "Invalid hostname.",
-      });
+      return reply.code(400).send({ message: "Invalid hostname." });
     }
 
     try {
       const users = await readUsers();
-      // Resolve the device assignment first. A saved hostname is a legacy
-      // profile hint only and must not override the current device mapping.
-      let user: InternUser | undefined;
       const deviceId = getDeviceId(request, "");
+      let user: InternUser | undefined;
+
       if (deviceId) {
-        const sessions = await readSessions();
-        const deviceSession = Object.values(sessions).find(
-          (session) => session.deviceId === deviceId,
-        );
-        if (deviceSession) user = findById(users, deviceSession.userId);
+        user = users.find((candidate) => candidate.deviceId === deviceId);
+        if (!user) {
+          const sessions = await readSessions();
+          const matches = Object.values(sessions).filter((session) => session.deviceId === deviceId);
+          const assignedIds = [...new Set(matches.map((session) => session.userId))];
+          if (assignedIds.length === 1) user = findById(users, assignedIds[0]);
+        }
       }
+
       if (!user && hostname) user = findByHostname(users, hostname);
 
-      // If a configured browser/device ID is the MAC ID stored in users.json,
-      // resolve that assignment too. Browsers cannot discover a physical MAC on
-      // their own; installations may explicitly provision this value.
       if (!user && deviceId) {
-        user = users.find((candidate) =>
-          candidate.macId.toLowerCase() === deviceId.toLowerCase()
-        );
+        const macMatches = users.filter((candidate) => candidate.macId.toLowerCase() === deviceId.toLowerCase());
+        if (macMatches.length === 1) user = macMatches[0];
       }
-      if (!user && hostname) user = findByHostname(users, hostname);
 
-      // Unassigned devices are valid guest workstations, not profile-load failures.
-      // The device ID is only used to resolve a prior assignment; it is not an identity
-      // credential and must never grant access to a protected API by itself.
       if (!user) user = findById(users, "guest-intern");
       if (!user) {
-        return reply.code(500).send({
-          message: "The guest profile is missing from users.json.",
-        });
+        return reply.code(500).send({ message: "The guest profile is missing from users.json." });
       }
 
-      return {
-        user: {
-          ...publicUser(user),
-          locked: true,
-        },
-      };
+      return { user: { ...publicUser(user), locked: true } };
     } catch (error) {
       request.log.error(error, "Unable to load lockscreen profile");
-
-      return reply.code(500).send({
-        message: "Unable to load the device profile.",
-      });
+      return reply.code(500).send({ message: "Unable to load the device profile." });
     }
   });
 
