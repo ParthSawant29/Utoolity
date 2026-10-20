@@ -7,8 +7,23 @@ export type BoundingBoxAnnotation = {
   id: string;
   label: string;
   points: [Point, Point, Point, Point];
+  createdBy?: string;
+  updatedBy?: string;
+  updatedAt?: number;
 };
 export type AnnotationTool = "annotate" | "edit" | "add" | "delete";
+
+const currentActor = () => {
+  if (typeof window === "undefined") return "Unknown";
+  const cached = window.localStorage.getItem("utoolity.cached-user");
+  if (cached) {
+    try {
+      const user = JSON.parse(cached) as { displayName?: unknown };
+      if (typeof user.displayName === "string" && user.displayName.trim()) return user.displayName;
+    } catch {}
+  }
+  return window.localStorage.getItem("utoolity.authenticated-user-id") ?? "Unknown";
+};
 
 const rectanglePoints = (start: Point, end: Point): [Point, Point, Point, Point] => {
   const left = Math.min(start.x, end.x);
@@ -37,10 +52,14 @@ export function useBoundingBoxAnnotation() {
       return;
     }
     saveHistory();
+    const actor = currentActor();
     setBoxes((previous) => [...previous, {
       id: crypto.randomUUID(),
-      label: currentLabel.trim() || `Object ${boxes.length + 1}`,
+      label: currentLabel.trim() || `Object ${previous.length + 1}`,
       points: rectanglePoints(points[0], point),
+      createdBy: actor,
+      updatedBy: actor,
+      updatedAt: Date.now(),
     }]);
     setPoints([]);
   }, [boxes.length, currentLabel, points, saveHistory, tool]);
@@ -54,12 +73,12 @@ export function useBoundingBoxAnnotation() {
     setBoxes((previous) => previous.map((box) => {
       if (box.id !== id) return box;
       const opposite = box.points[(index + 2) % 4];
-      return { ...box, points: rectanglePoints(opposite, point) };
+      return { ...box, points: rectanglePoints(opposite, point), updatedBy: currentActor(), updatedAt: Date.now() };
     }));
   }, [boxes, points]);
 
   const updateBoxLabel = useCallback((id: string, label: string) => {
-    setBoxes((previous) => previous.map((box) => box.id === id ? { ...box, label } : box));
+    setBoxes((previous) => previous.map((box) => box.id === id ? { ...box, label, updatedBy: currentActor(), updatedAt: Date.now() } : box));
   }, []);
 
   const loadAnnotations = useCallback((next: BoundingBoxAnnotation[]) => {
