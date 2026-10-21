@@ -156,6 +156,7 @@ export default function Notifications({
                     onClick={() => {
                       const ids = notices.map((notice) => notice.id);
                       const nextCleared = new Set([...clearedIds, ...ids]);
+                      cleared = nextCleared;
                       setClearedIds(nextCleared);
                       setNotices([]);
                       try {
