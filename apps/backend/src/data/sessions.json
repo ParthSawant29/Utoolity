@@ -6,10 +6,10 @@
       "displayName": "Intern Harshal",
       "deviceId": "L-MHP-IXMT2",
       "role": "intern",
-      "active": false,
+      "active": true,
       "activeApps": [],
-      "lastActivityAt": 1792557077104,
-      "updatedAt": 1792557319023
+      "lastActivityAt": 1792558475783,
+      "updatedAt": 1792558475783
     },
     "Wraith OS:wraith-os": {
       "userId": "Wraith OS",
@@ -17,10 +17,10 @@
       "displayName": "Harshal Chaudhari",
       "deviceId": "wraith-os",
       "role": "intern",
-      "active": true,
+      "active": false,
       "activeApps": [],
-      "lastActivityAt": 1792557386868,
-      "updatedAt": 1792557386868
+      "lastActivityAt": 1792559920930,
+      "updatedAt": 1792560642633
     }
   }
 }

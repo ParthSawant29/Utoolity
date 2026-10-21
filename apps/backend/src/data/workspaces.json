@@ -9,8 +9,24 @@
       }
     },
     "Wraith OS": {
-      "openApps": [],
-      "activeAppKey": null,
+      "openApps": [
+        {
+          "app": "files",
+          "window": {
+            "position": {
+              "x": 0,
+              "y": 0
+            },
+            "size": {
+              "width": 1000,
+              "height": 780
+            },
+            "maximized": false,
+            "minimized": false
+          }
+        }
+      ],
+      "activeAppKey": "files:",
       "context": {
         "boundingBoxFolder": null,
         "polygonFolder": null
