@@ -163,10 +163,19 @@ async function performApi<T>(
           ? body
           : `Request failed (${response.status}).`;
 
-    if (path !== "/api/auth/report-issue" && response.status >= 400 && response.status !== 401 && response.status !== 403) {
+    const expectedAuthFailure =
+      path === "/api/auth/report-issue" ||
+      path === "/api/auth/login" ||
+      path === "/api/auth/logout" ||
+      path === "/api/lockscreen/unlock" ||
+      path === "/api/lockscreen/register" ||
+      path === "/api/lockscreen/me" ||
+      path === "/api/auth/me";
+    if (!expectedAuthFailure && response.status >= 400) {
+      const isStorageRequest = path.startsWith("/api/storage/");
       window.dispatchEvent(new CustomEvent("utoolity:issue-detected", {
         detail: {
-          appName: document.title || "Utoolity Desktop",
+          appName: isStorageRequest ? "File Manager" : document.title || "Utoolity Desktop",
           errorName: `HTTP ${response.status}`,
           details: `${options.method ?? "GET"} ${path}\\n${message}`,
         },
