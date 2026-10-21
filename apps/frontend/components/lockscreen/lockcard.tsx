@@ -75,8 +75,10 @@ function Lockcard({
   const [profile, setProfile] = useState<LockProfile | null>(null);
   const [hostname, setHostname] = useState("");
   const [deviceIdInput, setDeviceIdInput] = useState("");
+  const [displayNameInput, setDisplayNameInput] = useState("");
+  const [needsRegistration, setNeedsRegistration] = useState(false);
   const [password, setPassword] = useState("");
-  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [loadingProfile, setLoadingProfile] = useState(false);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
   const [fullscreen, setFullscreen] = useState(false);
@@ -132,8 +134,8 @@ function Lockcard({
       const configuredHostname = savedHostname || "";
 
       setHostname(configuredHostname);
-      // Cached profile is a display hint only. Use it immediately to avoid
-      // flashing Guest, then refresh the assignment from the backend.
+      // Cached profile is only a temporary display hint; keep the default wallpaper
+      // and setup prompt visible instead of displaying a loading lock screen.
       const cachedProfileRaw = window.localStorage.getItem("utoolity.cached-user");
       if (cachedProfileRaw) {
         try {
@@ -159,6 +161,7 @@ function Lockcard({
           setProfile(null);
           setHostname("");
           setDeviceIdInput("");
+          setNeedsRegistration(false);
           setError("");
           return;
         }
@@ -176,7 +179,7 @@ function Lockcard({
         // Never turn a transport/server error into a fake Guest assignment.
         // Guest is shown only when the backend explicitly resolves Guest.
         setProfile((current) => current ?? null);
-        setError("Unable to verify this device profile. Check the backend connection.");
+        setError("");
       } finally {
         if (active) setLoadingProfile(false);
       }
@@ -258,7 +261,9 @@ function Lockcard({
         `/api/lockscreen/me?hostname=${encodeURIComponent(enteredDeviceId)}`,
       );
       if (!response.user) {
-        setError("Device ID was not found. Check it with your administrator.");
+        setNeedsRegistration(true);
+        setDisplayNameInput("");
+        setError("");
         return;
       }
       window.localStorage.setItem(HOSTNAME_STORAGE_KEY, response.user.hostname);
@@ -270,6 +275,33 @@ function Lockcard({
       setDeviceIdInput("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Unable to verify this device ID.");
+    } finally {
+      setChecking(false);
+    }
+  };
+  const handleRegisterDevice = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const hostId = deviceIdInput.trim();
+    const displayName = displayNameInput.trim();
+    if (!hostId || displayName.length < 2 || checking) return;
+    setChecking(true);
+    setError("");
+    try {
+      const response = await api<{ success: boolean; user: NonNullable<LockProfileResponse["user"]> }>(
+        "/api/lockscreen/register",
+        { method: "POST", body: JSON.stringify({ hostname: hostId, displayName }) },
+      );
+      const user = response.user;
+      window.localStorage.setItem(HOSTNAME_STORAGE_KEY, user.hostname);
+      window.localStorage.setItem("utoolity.device-id", user.hostname);
+      window.localStorage.setItem("utoolity.cached-user", JSON.stringify(user));
+      window.localStorage.setItem("utoolity.authenticated-user-id", user.id);
+      window.localStorage.setItem("utoolity.authenticated", "true");
+      setProfile({ ...user, locked: false });
+      setHostname(user.hostname);
+      leaveLockscreen();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Unable to create this profile.");
     } finally {
       setChecking(false);
     }
@@ -379,11 +411,9 @@ function Lockcard({
             />
           </div>
           <h1 className="max-w-full wrap-break-word text-xl font-bold text-white">
-            {loadingProfile
-              ? "Loading profile..."
-              : profile?.displayName ?? "Assigned workstation"}
+            {profile?.displayName ?? "Set up this device"}
           </h1>
-          {!loadingProfile && !profile ? (
+          {!profile && !needsRegistration ? (
             <form
               onSubmit={handleDeviceIdSubmit}
               className="mt-8 flex w-full max-w-sm flex-col items-center"
@@ -410,6 +440,13 @@ function Lockcard({
               >
                 {checking ? "Checking..." : "Use this device"}
               </button>
+              {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
+            </form>
+          ) : !profile && needsRegistration ? (
+            <form onSubmit={handleRegisterDevice} className="mt-8 flex w-full max-w-sm flex-col items-center">
+              <p className="mb-4 text-sm font-medium tracking-wide text-white/80">New device — enter your name</p>
+              <input aria-label="Your name" type="text" value={displayNameInput} onChange={(event) => setDisplayNameInput(event.target.value)} placeholder="Your name" autoComplete="name" maxLength={80} disabled={checking} className="w-full rounded-2xl border border-white/20 bg-black/25 px-5 py-4 text-center text-lg text-white outline-none placeholder:text-white/45 focus:border-white/50 disabled:opacity-50" />
+              <button type="submit" disabled={checking || displayNameInput.trim().length < 2} className="mt-4 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{checking ? "Saving profile…" : "Save and continue"}</button>
               {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
             </form>
           ) : isLocked && lockscreenState === "locked" ? (
