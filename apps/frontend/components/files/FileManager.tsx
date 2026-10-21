@@ -449,7 +449,7 @@ export default function FileManager({ onOpenFile }: Props) {
 
           <div className="min-w-0">
             <h2 className="truncate text-lg font-bold">
-              {folderPickerMode ? "Choose a folder" : "Files"}
+              {folderPickerMode ? "Choose a folder" : "File Manager"}
             </h2>
 
             <p className="text-xs text-muted-foreground">
@@ -648,7 +648,7 @@ export default function FileManager({ onOpenFile }: Props) {
                     setMenuOpen(false);
                   }}
                   onDoubleClick={() => openEntry(entry)}
-                  className={`group relative min-w-0 overflow-hidden rounded-2xl border text-left transition-colors ${
+                  className={`group relative min-w-0 overflow-visible rounded-2xl border text-left transition-colors ${
                     active
                       ? "border-primary bg-primary/5 ring-1 ring-primary/40"
                       : "border-border bg-card hover:border-foreground/20 hover:bg-muted/50"
@@ -723,7 +723,7 @@ export default function FileManager({ onOpenFile }: Props) {
                     </button>
 
                     {active && menuOpen && (
-                      <div className="absolute right-0 top-9 z-30 w-48 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl">
+                      <div className="absolute right-0 top-9 z-[9999] w-48 rounded-xl border border-border bg-popover p-1.5 text-popover-foreground shadow-xl">
                         {folderPickerMode && directory && (
                           <button
                             type="button"
