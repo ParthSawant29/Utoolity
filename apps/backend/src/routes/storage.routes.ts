@@ -50,7 +50,7 @@ function requestedTarget(user: UserRecord, requested: string) {
   if (requested.startsWith("server/")) {
     return resolveInside(userRoot(user), requested.slice("server/".length));
   }
-  return resolveInside(userRoot(user), requested.replace(/^\\/+/, ""));
+  return resolveInside(userRoot(user), requested.replace(/^\/+/, ""));
 }
 
 async function getUser(request: FastifyRequest): Promise<UserRecord> {
