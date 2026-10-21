@@ -565,3 +565,14 @@ body *::after {
 .desktop-window-closing { animation: desktop-window-exit 180ms cubic-bezier(0.4, 0, 1, 1) both; }
 .desktop-window-minimized { animation: desktop-panel-enter 180ms cubic-bezier(0.22, 1, 0.36, 1) both; }
 .desktop-panel { animation: desktop-panel-enter 160ms cubic-bezier(0.22, 1, 0.36, 1) both; }
+
+
+/* Keep the desktop wallpaper surface flat: no CSS gradients, wash, or vignette overlays. */
+.desktop-background,
+[data-wallpaper] .desktop-background {
+  background: var(--background) !important;
+}
+.desktop-background-wash,
+.desktop-background-vignette {
+  display: none !important;
+}
