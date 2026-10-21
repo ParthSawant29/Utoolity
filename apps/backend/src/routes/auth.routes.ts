@@ -25,7 +25,7 @@ type CredentialsBody = {
 type PublicUser = Pick<
   InternUser,
   "id" | "hostname" | "displayName" | "role"
->;
+> & { passwordConfigured: boolean };
 
 type AuthSession = {
   userId?: string;
@@ -236,6 +236,7 @@ function publicUser(user: InternUser): PublicUser {
     hostname: user.hostname,
     displayName: user.displayName,
     role: user.role,
+    passwordConfigured: Boolean(user.password),
   };
 }
 
@@ -418,7 +419,13 @@ export default async function authRoutes(app: FastifyInstance) {
   app.post<{ Body: CredentialsBody }>(
     "/auth/login",
     async (request, reply) => {
-      if (!validCredentials(request.body)) {
+      if (
+        typeof request.body?.hostname !== "string" ||
+        !request.body.hostname.trim() ||
+        request.body.hostname.length > 255 ||
+        typeof request.body.password !== "string" ||
+        request.body.password.length > 1024
+      ) {
         return reply.code(400).send({
           message: "A valid hostname and password are required.",
         });
