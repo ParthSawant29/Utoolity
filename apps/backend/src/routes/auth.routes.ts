@@ -206,7 +206,8 @@ function normalizeUserRecord(value: unknown): InternUser {
     throw new Error("users.json contains an invalid user record.");
   }
   const user = value as InternUser & { macId?: string };
-  const { macId: _legacyMacId, ...profile } = user;
+  const profile = { ...user };
+  delete profile.macId;
   const hostname = typeof user.hostname === "string" ? user.hostname.trim() : "";
   if (!hostname || typeof user.displayName !== "string") {
     throw new Error("Each user must have a hostname and displayName.");
