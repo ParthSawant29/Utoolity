@@ -24,7 +24,7 @@ const iconDimensions: Record<IconSize, { tile: string; art: string; button: stri
 };
 
 const apps: DesktopApp[] = [
-  { id: "files", label: "Folder", icon: Folder, frameSet: "folder", iconClassName: "bg-accent text-primary-foreground", route: "files" },
+  { id: "files", label: "File Manager", icon: Folder, frameSet: "folder", iconClassName: "bg-accent text-primary-foreground", route: "files" },
   {
     id: "images",
     label: "Images",
