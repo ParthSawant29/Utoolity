@@ -107,6 +107,7 @@ function Lockcard({
   const [hostname, setHostname] = useState("");
   const [deviceIdInput, setDeviceIdInput] = useState("");
   const [displayNameInput, setDisplayNameInput] = useState("");
+  const [newPasswordInput, setNewPasswordInput] = useState("");
   const [needsRegistration, setNeedsRegistration] = useState(false);
   const [password, setPassword] = useState("");
   const [loadingProfile, setLoadingProfile] = useState(false);
@@ -317,15 +318,16 @@ function Lockcard({
     event.preventDefault();
     const hostId = deviceIdInput.trim();
     const displayName = displayNameInput.trim();
-    if (!hostId || displayName.length < 2 || checking) return;
+    if (!hostId || displayName.length < 2 || newPasswordInput.length < 8 || checking) return;
     setChecking(true);
     setError("");
     try {
       const response = await api<{ success: boolean; user: NonNullable<LockProfileResponse["user"]> }>(
         "/api/lockscreen/register",
-        { method: "POST", body: JSON.stringify({ hostname: hostId, displayName }) },
+        { method: "POST", body: JSON.stringify({ hostname: hostId, displayName, password: newPasswordInput }) },
       );
       const user = response.user;
+      setNewPasswordInput("");
       applyProfilePreferences(user.preferences);
       window.localStorage.setItem(HOSTNAME_STORAGE_KEY, user.hostname);
       window.localStorage.setItem("utoolity.device-id", user.hostname);
@@ -482,7 +484,8 @@ function Lockcard({
             <form onSubmit={handleRegisterDevice} className="mt-8 flex w-full max-w-sm flex-col items-center">
               <p className="mb-4 text-sm font-medium tracking-wide text-white/80">New device — enter your name</p>
               <input aria-label="Your name" type="text" value={displayNameInput} onChange={(event) => setDisplayNameInput(event.target.value)} placeholder="Your name" autoComplete="name" maxLength={80} disabled={checking} className="w-full rounded-2xl border border-white/20 bg-black/25 px-5 py-4 text-center text-lg text-white outline-none placeholder:text-white/45 focus:border-white/50 disabled:opacity-50" />
-              <button type="submit" disabled={checking || displayNameInput.trim().length < 2} className="mt-4 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{checking ? "Saving profile…" : "Save and continue"}</button>
+              <input aria-label="Create password" type="password" value={newPasswordInput} onChange={(event) => setNewPasswordInput(event.target.value)} placeholder="Create password (8+ characters)" autoComplete="new-password" minLength={8} maxLength={1024} required disabled={checking} className="mt-3 w-full rounded-2xl border border-white/20 bg-black/25 px-5 py-4 text-center text-lg text-white outline-none placeholder:text-white/45 focus:border-white/50 disabled:opacity-50" />
+              <button type="submit" disabled={checking || displayNameInput.trim().length < 2 || newPasswordInput.length < 8} className="mt-4 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground disabled:opacity-50">{checking ? "Saving profile…" : "Save and continue"}</button>
               {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
             </form>
           ) : isLocked && lockscreenState === "locked" ? (
