@@ -107,6 +107,7 @@ app.addHook("preHandler", async (request, reply) => {
 
   const pathname = request.url.split("?")[0] ?? request.url;
   if (pathname === "/api/auth/socket") return;
+  if (pathname === "/api/lockscreen/register") return;
 
   if (lockscreenIdentityPaths.has(pathname)) {
     const deviceId = request.headers["x-utoolity-device-id"];
