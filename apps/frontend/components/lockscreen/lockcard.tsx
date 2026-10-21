@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { api, ApiError } from "../../lib/api";
 import { useClock } from "../shared/useClock";
+import DesktopBackground from "../desktop/DesktopBackground";
 type LockProfile = {
   id: string;
   hostname: string;
@@ -259,6 +260,7 @@ function Lockcard({
     try {
       const response = await api<LockProfileResponse>(
         `/api/lockscreen/me?hostname=${encodeURIComponent(enteredDeviceId)}`,
+        { headers: { "X-Utoolity-Device-Id": enteredDeviceId } },
       );
       if (!response.user) {
         setNeedsRegistration(true);
@@ -371,6 +373,7 @@ function Lockcard({
         leaving ? "lockscreen-exit" : "lockscreen-enter"
       }`}
     >
+      <DesktopBackground />
       <button
         type="button"
         onClick={toggleFullscreen}
