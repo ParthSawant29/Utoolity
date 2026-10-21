@@ -303,7 +303,7 @@ async function establishSession(
 ): Promise<void> {
   const session = getSession(request);
   session.userId = user.id;
-  session.deviceId = getDeviceId(request, user.macId);
+  session.deviceId = getDeviceId(request, user.deviceId ?? user.macId);
   session.role = user.role;
   session.lastActivityAt = Date.now();
   await saveSession(request);
@@ -376,7 +376,7 @@ export default async function authRoutes(app: FastifyInstance) {
     const activeApps = request.body && Array.isArray(request.body.openApps)
       ? request.body.openApps
       : [];
-    const deviceId = getDeviceId(request, user.macId);
+    const deviceId = getDeviceId(request, user.deviceId ?? user.macId);
     const currentSessions = await readSessions();
     const existing = currentSessions[`${user.id}:${deviceId}`] ?? currentSessions[user.id];
     await updateSessionRecord(user, {
@@ -398,7 +398,7 @@ export default async function authRoutes(app: FastifyInstance) {
       const user = findById(users, session.userId);
       if (user) {
         const sessions = await readSessions();
-        const deviceId = getDeviceId(request, user.macId);
+        const deviceId = getDeviceId(request, user.deviceId ?? user.macId);
         const existing = sessions[`${user.id}:${deviceId}`] ?? sessions[user.id];
         await updateSessionRecord(user, {
           active: true,
@@ -442,7 +442,7 @@ export default async function authRoutes(app: FastifyInstance) {
           active: true,
           activeApps: [],
           lastActivityAt: Date.now(),
-        }, getDeviceId(request, user.macId));
+        }, getDeviceId(request, user.deviceId ?? user.macId));
 
         return {
           user: publicUser(user),
@@ -469,7 +469,7 @@ export default async function authRoutes(app: FastifyInstance) {
             active: false,
             activeApps: [],
             lastActivityAt: Date.now(),
-          }, getDeviceId(request, user.macId));
+          }, getDeviceId(request, user.deviceId ?? user.macId));
         }
       }
       await destroySession(request);
@@ -1184,7 +1184,7 @@ export default async function authRoutes(app: FastifyInstance) {
           active: true,
           activeApps: [],
           lastActivityAt: Date.now(),
-        }, getDeviceId(request, user.macId));
+        }, getDeviceId(request, user.deviceId ?? user.macId));
 
         return {
           success: true,
