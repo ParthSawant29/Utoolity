@@ -90,6 +90,7 @@ async function writeSessions(sessions: Record<string, SessionRecord>): Promise<v
   );
 }
 
+let preferenceWriteQueue: Promise<void> = Promise.resolve();
 let sessionUpdateQueue: Promise<void> = Promise.resolve();
 let workspaceUpdateQueue: Promise<void> = Promise.resolve();
 const deviceInactivityTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -629,24 +630,35 @@ export default async function authRoutes(app: FastifyInstance) {
       }
 
       try {
-        const users = await readUsers();
-        const user = findById(users, userId);
-        if (!user) {
-          return reply.code(401).send({ message: "Session user no longer exists." });
-        }
+        // Serialize read-modify-write operations: wallpaper, theme and grain can
+        // be changed in quick succession, and parallel JSON writes can overwrite
+        // one another or leave a transient invalid JSON file.
+        const operation = preferenceWriteQueue.then(async () => {
+          const users = await readUsers();
+          const user = findById(users, userId);
+          if (!user) {
+            throw new Error("Session user no longer exists.");
+          }
 
-        user.preferences = {
-          ...defaultPreferences,
-          ...(user.preferences ?? {}),
-        };
-        for (const [key, value] of entries) {
-          user.preferences[key] = value as string;
-        }
-        await writeUsers(users);
-        return { preferences: user.preferences };
+          user.preferences = {
+            ...defaultPreferences,
+            ...(user.preferences ?? {}),
+          };
+          for (const [key, value] of entries) {
+            user.preferences[key] = value as string;
+          }
+          await writeUsers(users);
+          return { preferences: user.preferences };
+        });
+        preferenceWriteQueue = operation.then(() => undefined, () => undefined);
+        return await operation;
       } catch (error) {
-        request.log.error(error, "Unable to save user preferences");
-        return reply.code(500).send({ message: "Unable to save preferences." });
+        request.log.error({ err: error, userId, keys: entries.map(([key]) => key) }, "Unable to save user preferences");
+        return reply.code(error instanceof Error && error.message === "Session user no longer exists." ? 401 : 500).send({
+          message: error instanceof Error && error.message === "Session user no longer exists."
+            ? error.message
+            : "Unable to save preferences.",
+        });
       }
     },
   );
