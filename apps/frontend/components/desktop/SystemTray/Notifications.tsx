@@ -7,6 +7,7 @@ import { Bell, X, ShieldAlert, AppWindow, AlertTriangle, CheckCheck } from "luci
 type Notice = { id: string; title: string; message: string; type: "system" | "app" | "error"; createdAt: number; issue?: { appName?: string; errorName?: string; details?: string } };
 
 const NOTIFICATION_STORAGE_KEY = "utoolity.notifications";
+const CLEARED_NOTIFICATION_IDS_KEY = "utoolity.cleared-notification-ids";
 
 type Props = {
   open: boolean;
@@ -22,6 +23,7 @@ export default function Notifications({
   const [mounted, setMounted] = useState(open);
   const [notices, setNotices] = useState<Notice[]>([]);
   const [filter, setFilter] = useState<"all" | "system" | "app" | "error">("all");
+  const [clearedIds, setClearedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const persist = (items: Notice[]) => {
@@ -31,11 +33,15 @@ export default function Notifications({
         // Notifications remain usable for this mount if session storage is unavailable.
       }
     };
+    let cleared = new Set<string>();
     try {
+      const savedCleared = JSON.parse(window.sessionStorage.getItem(CLEARED_NOTIFICATION_IDS_KEY) || "[]") as unknown;
+      if (Array.isArray(savedCleared)) cleared = new Set(savedCleared.filter((id): id is string => typeof id === "string"));
+      setClearedIds(cleared);
       const saved = window.sessionStorage.getItem(NOTIFICATION_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved) as Notice[];
-        if (Array.isArray(parsed)) setNotices(parsed.filter((item) => item && typeof item.id === "string" && typeof item.message === "string").slice(0, 100));
+        if (Array.isArray(parsed)) setNotices(parsed.filter((item) => item && typeof item.id === "string" && typeof item.message === "string" && !cleared.has(item.id)).slice(0, 100));
       }
     } catch {
       window.sessionStorage.removeItem(NOTIFICATION_STORAGE_KEY);
@@ -43,6 +49,7 @@ export default function Notifications({
     const receive = (event: Event) => {
       const detail = (event as CustomEvent<Partial<Notice>>).detail;
       if (!detail || !detail.message) return;
+      if (cleared.has(detail.id ?? "")) return;
       const type = detail.type === "system" || detail.type === "error" ? detail.type : "app";
       const notice: Notice = {
         id: detail.id ?? `${Date.now()}-${Math.random()}`,
@@ -130,18 +137,43 @@ export default function Notifications({
             role="dialog"
             aria-label="Notifications"
             aria-hidden={!open}
-            className={`absolute right-0 top-[calc(100%+12px)] z-[86] w-[min(350px,calc(100vw-24px))] origin-top-right overflow-hidden rounded-3xl border border-border/80 bg-popover p-4 text-popover-foreground shadow-2xl shadow-black/20 transition-[opacity,transform] duration-200 ease-out desktop-panel sm:p-5 ${
+            className={`absolute right-0 top-[calc(100%+12px)] z-[86] w-[min(350px,calc(100vw-24px))] origin-top-right overflow-hidden rounded-3xl border border-border/80 bg-popover p-4 text-popover-foreground shadow-lg shadow-black/10 transition-[opacity,transform] duration-150 ease-out will-change-transform desktop-panel sm:p-5 ${
               open
                 ? "translate-y-0 scale-100 opacity-100"
                 : "pointer-events-none -translate-y-2 scale-[0.98] opacity-0"
             }`}
           >
             <header className="flex min-h-7 items-center justify-between gap-3">
-              <h2 className="text-base font-bold leading-6 tracking-tight">
-                Notifications
-              </h2>
+              <div className="flex min-w-0 items-center gap-2">
+                <h2 className="text-base font-bold leading-6 tracking-tight">Notifications</h2>
+                <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-muted px-1.5 py-0.5 text-[11px] font-semibold tabular-nums text-muted-foreground" aria-label={`${notices.length} notifications`}>{notices.length}</span>
+              </div>
 
-              <button
+              <div className="flex items-center gap-1">
+                {notices.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const ids = notices.map((notice) => notice.id);
+                      const nextCleared = new Set([...clearedIds, ...ids]);
+                      setClearedIds(nextCleared);
+                      setNotices([]);
+                      try {
+                        window.sessionStorage.setItem(CLEARED_NOTIFICATION_IDS_KEY, JSON.stringify([...nextCleared].slice(-500)));
+                        window.sessionStorage.setItem(NOTIFICATION_STORAGE_KEY, "[]");
+                      } catch {
+                        // Clear the current view even if storage is unavailable.
+                      }
+                    }}
+                    tabIndex={open ? 0 : -1}
+                    className="inline-flex h-8 items-center gap-1 rounded-full px-2 text-xs font-medium text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                    title="Clear all notifications"
+                  >
+                    <CheckCheck size={14} />
+                    Clear all
+                  </button>
+                )}
+                <button
                 type="button"
                 onClick={onClose}
                 tabIndex={open ? 0 : -1}
@@ -149,7 +181,8 @@ export default function Notifications({
                 className="flex size-8 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
               >
                 <X size={17} strokeWidth={1.8} />
-              </button>
+                </button>
+              </div>
             </header>
 
             {visibleNotices.length === 0 ? (
@@ -165,10 +198,14 @@ export default function Notifications({
                     key={notice.id}
                     type="button"
                     onClick={() => {
-                      if (notice.issue) {
-                        window.dispatchEvent(new CustomEvent("utoolity:reopen-issue", { detail: notice.issue }));
-                      }
                       onClose();
+                      if (notice.issue) {
+                        // Dispatch after the tray starts closing so the modal is
+                        // not obscured by the tray's closing overlay.
+                        window.setTimeout(() => {
+                          window.dispatchEvent(new CustomEvent("utoolity:reopen-issue", { detail: notice.issue }));
+                        }, 0);
+                      }
                     }}
                     className="block w-full rounded-2xl border border-border/70 bg-background/70 p-3 text-left transition-colors hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     aria-label={notice.issue ? `Reopen issue report: ${notice.title}` : notice.title}
