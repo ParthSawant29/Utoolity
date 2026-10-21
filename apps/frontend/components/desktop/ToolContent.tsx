@@ -58,7 +58,7 @@ export default function ToolContent({ app, filePath, onOpenFile }: { app: Deskto
     case "video-to-images": return <VideoToImagesPage />;
     case "bounding-box": return <BoundingBoxPage />;
     case "augmentation": return <AugmentationPage />;
-    case "gallery": return <Gallery />;
+    case "gallery": return <Gallery initialPath={filePath} />;
     case "notepad": return <Notepad initialPath={filePath} />;
   }
 }
