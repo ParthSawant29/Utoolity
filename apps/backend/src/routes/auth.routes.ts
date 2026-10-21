@@ -206,6 +206,7 @@ function normalizeUserRecord(value: unknown): InternUser {
     throw new Error("users.json contains an invalid user record.");
   }
   const user = value as InternUser & { macId?: string };
+  const { macId: _legacyMacId, ...profile } = user;
   const hostname = typeof user.hostname === "string" ? user.hostname.trim() : "";
   if (!hostname || typeof user.displayName !== "string") {
     throw new Error("Each user must have a hostname and displayName.");
@@ -219,7 +220,7 @@ function normalizeUserRecord(value: unknown): InternUser {
   const requestedWallpaper = oldWallpaper ? (wallpaperAliases[oldWallpaper] ?? oldWallpaper) : "Default";
   const theme = oldPreferences["utoolity.theme"];
   return {
-    ...user,
+    ...profile,
     id: hostname,
     hostname,
     deviceId: hostname,
