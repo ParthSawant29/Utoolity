@@ -196,6 +196,45 @@ const sessionsFilePath = fileURLToPath(
   new URL("../data/sessions.json", import.meta.url),
 );
 
+const validWallpaperIds = new Set([
+  "Default", "Desert", "Lakeside", "Rancho", "Sands",
+  "Live/Blossom.mp4", "Live/Cyber.mp4", "Live/Islands.mp4",
+]);
+
+function normalizeUserRecord(value: unknown): InternUser {
+  if (!value || typeof value !== "object") {
+    throw new Error("users.json contains an invalid user record.");
+  }
+  const user = value as InternUser & { macId?: string };
+  const hostname = typeof user.hostname === "string" ? user.hostname.trim() : "";
+  if (!hostname || typeof user.displayName !== "string") {
+    throw new Error("Each user must have a hostname and displayName.");
+  }
+  const oldPreferences = user.preferences ?? {};
+  const oldWallpaper = oldPreferences["utoolity.wallpaper"];
+  const wallpaperAliases: Record<string, string> = {
+    "default.jpg": "Default", "dark.jpg": "Default", "light.jpg": "Default",
+    "new.jpg": "Default", "Midnight": "Default",
+  };
+  const requestedWallpaper = oldWallpaper ? (wallpaperAliases[oldWallpaper] ?? oldWallpaper) : "Default";
+  const theme = oldPreferences["utoolity.theme"];
+  return {
+    ...user,
+    id: hostname,
+    hostname,
+    deviceId: hostname,
+    role: user.role === "admin" ? "admin" : "intern",
+    password: typeof user.password === "string" ? user.password : "",
+    preferences: {
+      ...oldPreferences,
+      "utoolity.wallpaper": validWallpaperIds.has(requestedWallpaper) ? requestedWallpaper : "Default",
+      "utoolity.icon-size": oldPreferences["utoolity.icon-size"] ?? "large",
+      "utoolity.grain": oldPreferences["utoolity.grain"] ?? "none",
+      "utoolity.theme": theme === "dark" || theme === "light" ? theme : "device",
+    },
+  };
+}
+
 async function readUsers(): Promise<InternUser[]> {
   const raw = await readFile(usersFilePath, "utf8");
   const parsed: unknown = JSON.parse(raw);
@@ -209,7 +248,15 @@ async function readUsers(): Promise<InternUser[]> {
     throw new Error("users.json must contain a users array.");
   }
 
-  return parsed.users as InternUser[];
+  const original = parsed.users as Array<InternUser & { macId?: string }>;
+  const users = original.map(normalizeUserRecord);
+  // Migrate the existing JSON store in place while preserving passwords and
+  // any supported per-profile settings. Future database migration can consume
+  // this normalized shape without another manual cleanup.
+  if (JSON.stringify(original) !== JSON.stringify(users)) {
+    await writeFile(usersFilePath, `${JSON.stringify({ users }, null, 2)}\\n`, "utf8");
+  }
+  return users;
 }
 
 async function readWorkspaces(): Promise<Record<string, WorkspaceState>> {
