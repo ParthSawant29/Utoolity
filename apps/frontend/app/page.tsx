@@ -14,6 +14,7 @@ const LAST_ACTIVITY_KEY = "utoolity.last-activity";
 const SLEEP_STARTED_KEY = "utoolity.sleep-started";
 const SLEEP_AFTER_MS = 5 * 60 * 1000;
 const LOCK_AFTER_MS = 2 * 60 * 1000;
+const SLEEP_WARNING_BEFORE_MS = 30 * 1000;
 
 export default function Home() {
   const [shellState, setShellState] = useState<ShellState>("checking");
@@ -256,12 +257,26 @@ export default function Home() {
       window.addEventListener(event, recordActivity, { passive: true }),
     );
 
+    let warningShownFor = 0;
     const timer = window.setInterval(() => {
-      if (busyRef.current || Date.now() - lastActivityRef.current < SLEEP_AFTER_MS) return;
+      if (busyRef.current) return;
+      const inactiveFor = Date.now() - lastActivityRef.current;
+      const remaining = SLEEP_AFTER_MS - inactiveFor;
+      if (remaining > 0 && remaining <= SLEEP_WARNING_BEFORE_MS && warningShownFor !== lastActivityRef.current) {
+        warningShownFor = lastActivityRef.current;
+        window.dispatchEvent(new CustomEvent("utoolity:notification", {
+          detail: {
+            type: "system",
+            title: "Sleep warning",
+            message: "The desktop will enter sleep in 30 seconds due to inactivity. Move your mouse or press a key to stay active.",
+          },
+        }));
+      }
+      if (remaining > 0) return;
       localStorage.setItem(SHELL_STATE_KEY, "sleep");
       localStorage.setItem(SLEEP_STARTED_KEY, String(Date.now()));
       setShellState("sleep");
-    }, 1000);
+    }, 500);
     return () => {
       window.clearInterval(timer);
       activityEvents.forEach((event) =>
