@@ -30,6 +30,22 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="bg-background min-h-full font-sans overscroll-none">
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(() => {
+              try {
+                const saved = localStorage.getItem("utoolity.theme");
+                const theme = saved === "dark" || saved === "light"
+                  ? saved
+                  : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+                const root = document.documentElement;
+                root.classList.toggle("dark", theme === "dark");
+                root.classList.toggle("light", theme === "light");
+                root.style.colorScheme = theme;
+              } catch {}
+            })();`,
+          }}
+        />
         <DeviceTheme />
         <CustomCursor />
         <BrowserGuards />
