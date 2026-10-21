@@ -21,6 +21,7 @@ type LockProfile = {
   hostname: string;
   displayName: string;
   locked: boolean;
+  passwordConfigured?: boolean;
   preferences?: Record<string, string>;
 };
 type LockProfileResponse = {
@@ -29,6 +30,7 @@ type LockProfileResponse = {
     hostname: string;
     displayName: string;
     role: "intern" | "admin";
+    passwordConfigured: boolean;
     preferences?: Record<string, string>;
   };
   requiresDeviceId?: boolean;
@@ -40,6 +42,7 @@ type UnlockResponse = {
     hostname: string;
     displayName: string;
     role: "intern" | "admin";
+    passwordConfigured: boolean;
   };
 };
 type LockcardProps = {
@@ -495,7 +498,7 @@ function Lockcard({
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
-                placeholder="••••••••"
+                placeholder={profile?.passwordConfigured === false ? "No password set — leave blank" : "••••••••"}
                 autoComplete="current-password"
                 disabled={loadingProfile || checking}
                 className="w-full rounded-2xl border border-white/20 bg-black/25 px-5 py-4 text-center font-mono text-3xl tracking-[0.45em] text-white outline-none backdrop-blur-sm placeholder:text-white/45 focus:border-white/50 focus:ring-2 focus:ring-white/20 disabled:opacity-50"
@@ -503,7 +506,7 @@ function Lockcard({
               <button
                 type="submit"
                 _aria-label_="Unlock"
-                disabled={loadingProfile || checking || !password || !profile?.hostname}
+                disabled={loadingProfile || checking || (!password && profile?.passwordConfigured !== false) || !profile?.hostname}
                 className="mt-4 inline-flex items-center gap-2 rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <ShieldCheck className="size-4" />
