@@ -120,11 +120,32 @@ export default function Notifications({
               </button>
             </header>
 
-            <div className="mt-3 flex min-h-11 items-center justify-center rounded-2xl bg-muted px-4 py-3">
-              <p className="text-sm font-medium leading-5 text-muted-foreground">
-                You are all caught up.
-              </p>
-            </div>
+            {visibleNotices.length === 0 ? (
+              <div className="mt-3 flex min-h-11 items-center justify-center rounded-2xl bg-muted px-4 py-3">
+                <p className="text-sm font-medium leading-5 text-muted-foreground">
+                  You are all caught up.
+                </p>
+              </div>
+            ) : (
+              <div className="mt-3 max-h-[min(60vh,420px)] space-y-2 overflow-y-auto">
+                {visibleNotices.map((notice) => (
+                  <article key={notice.id} className="rounded-2xl border border-border/70 bg-background/70 p-3">
+                    <div className="flex items-start gap-2">
+                      <span className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full ${notice.type === "error" ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>
+                        {notice.type === "error" ? <AlertTriangle size={15} /> : notice.type === "system" ? <ShieldAlert size={15} /> : <AppWindow size={15} />}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-sm font-semibold">{notice.title}</h3>
+                        <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-5 text-muted-foreground">{notice.message}</p>
+                        <time className="mt-2 block text-[11px] text-muted-foreground" dateTime={new Date(notice.createdAt).toISOString()}>
+                          {new Date(notice.createdAt).toLocaleString()}
+                        </time>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </section>
         </>
       )}
