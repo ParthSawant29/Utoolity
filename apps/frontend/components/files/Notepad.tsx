@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@repo/ui/shadcn/dialog";
 
 export default function Notepad({ initialPath }: { initialPath?: string }) {
   const [path, setPath] = useState(initialPath ?? "");
   const [value, setValue] = useState("");
   const [message, setMessage] = useState("");
+  const [saveAsOpen, setSaveAsOpen] = useState(false);
+  const [saveAsPath, setSaveAsPath] = useState(initialPath ?? "untitled.txt");
 
   useEffect(() => {
     const query = initialPath ?? new URLSearchParams(window.location.search).get("path");
@@ -31,11 +34,12 @@ export default function Notepad({ initialPath }: { initialPath?: string }) {
   };
 
   const saveAs = async () => {
-    const nextPath = window.prompt("Save as", path || "untitled.txt");
-    if (!nextPath?.trim()) return;
+    const nextPath = saveAsPath.trim();
+    if (!nextPath || nextPath === "." || nextPath === "..") return;
     try {
-      setPath(nextPath.trim());
-      await api("/api/storage/content", { method: "PUT", body: JSON.stringify({ path: nextPath.trim(), content: value }) });
+      await api("/api/storage/content", { method: "PUT", body: JSON.stringify({ path: nextPath, content: value }) });
+      setPath(nextPath);
+      setSaveAsOpen(false);
       setMessage("Saved as.");
     } catch (saveError) {
       setMessage(saveError instanceof Error ? saveError.message : "Unable to save file.");
@@ -47,11 +51,26 @@ export default function Notepad({ initialPath }: { initialPath?: string }) {
       <header className="flex items-center gap-2">
         <div className="min-w-0 flex-1 truncate rounded-xl border border-input bg-muted/40 px-3 py-2 text-sm" title={path}>{path.split("/").filter(Boolean).at(-1) ?? "Untitled"}</div>
         <button type="button" onClick={() => void save()} className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">Save</button>
-        <button type="button" onClick={() => void saveAs()} className="rounded-xl border border-border px-4 py-2 text-sm font-bold">Save as</button>
+        <button type="button" onClick={() => { setSaveAsPath(path || "untitled.txt"); setSaveAsOpen(true); }} className="rounded-xl border border-border px-4 py-2 text-sm font-bold">Save as</button>
         <button type="button" onClick={() => { setPath(""); setValue(""); setMessage(""); }} className="rounded-xl border border-border px-4 py-2 text-sm font-bold">New</button>
       </header>
       <textarea value={value} onChange={(event) => setValue(event.target.value)} className="min-h-0 flex-1 resize-none rounded-2xl border border-input bg-background p-4 font-mono text-sm outline-none focus:ring-2 focus:ring-ring" spellCheck={false} />
       {message && <p className="text-sm text-muted-foreground">{message}</p>}
+      <Dialog open={saveAsOpen} onOpenChange={setSaveAsOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Save file as</DialogTitle>
+            <DialogDescription>Enter a path relative to your workspace, for example server/notes.json.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={(event) => { event.preventDefault(); void saveAs(); }} className="space-y-4">
+            <input autoFocus value={saveAsPath} onChange={(event) => setSaveAsPath(event.target.value)} className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
+            <DialogFooter>
+              <button type="button" onClick={() => setSaveAsOpen(false)} className="rounded-lg border border-border px-4 py-2 text-sm font-semibold">Cancel</button>
+              <button type="submit" disabled={!saveAsPath.trim()} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">Save</button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }
