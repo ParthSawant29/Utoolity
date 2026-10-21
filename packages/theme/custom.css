@@ -45,11 +45,7 @@
   }
 
   .desktop-background {
-    background:
-      radial-gradient(ellipse at 0% 0%, color-mix(in oklab, var(--primary) 25%, transparent), transparent 38%),
-      radial-gradient(ellipse at 100% 0%, color-mix(in oklab, var(--accent) 22%, transparent), transparent 35%),
-      radial-gradient(ellipse at 70% 100%, color-mix(in oklab, var(--secondary) 24%, transparent), transparent 44%),
-      linear-gradient(145deg, var(--background), color-mix(in oklab, var(--background) 72%, var(--primary)));
+    background: var(--background);
   }
 
   .desktop-background-wash {
@@ -432,13 +428,7 @@
   }
 
   @layer components {
-    .desktop-background {
-      background:
-        radial-gradient(ellipse at 0% 0%, color-mix(in oklab, var(--primary) 25%, transparent), transparent 38%),
-        radial-gradient(ellipse at 100% 0%, color-mix(in oklab, var(--accent) 22%, transparent), transparent 35%),
-        radial-gradient(ellipse at 70% 100%, color-mix(in oklab, var(--secondary) 24%, transparent), transparent 44%),
-        linear-gradient(145deg, var(--background), color-mix(in oklab, var(--background) 72%, var(--primary)));
-    }
+    .desktop-background { background: var(--background); }
 
     .desktop-background-wash {
       background:
