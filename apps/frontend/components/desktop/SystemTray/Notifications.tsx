@@ -44,7 +44,16 @@ export default function Notifications({
       const detail = (event as CustomEvent<Partial<Notice>>).detail;
       if (!detail || !detail.message) return;
       const type = detail.type === "system" || detail.type === "error" ? detail.type : "app";
-      const notice: Notice = { id: detail.id ?? `${Date.now()}-${Math.random()}`, title: detail.title ?? (type === "system" ? "System" : type === "error" ? "Error" : "App notification"), message: detail.message, type, createdAt: detail.createdAt ?? Date.now() };
+      const notice: Notice = {
+        id: detail.id ?? `${Date.now()}-${Math.random()}`,
+        title: detail.title ?? (type === "system" ? "System" : type === "error" ? "Error" : "App notification"),
+        message: detail.message,
+        type,
+        createdAt: detail.createdAt ?? Date.now(),
+        // Preserve the issue payload so clicking this notification can reopen
+        // the report dialog with the original error details.
+        issue: detail.issue && typeof detail.issue === "object" ? detail.issue : undefined,
+      };
       setNotices((current) => {
         if (current.some((item) => item.id === notice.id)) return current;
         const updated = [notice, ...current].slice(0, 100);
