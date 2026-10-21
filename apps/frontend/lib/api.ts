@@ -46,10 +46,11 @@ async function performApi<T>(
   const headers = new Headers(options.headers);
   // Cached device identity is only used before the shell has an authenticated
   // profile (the lock-screen flow). Normal app requests rely on the session cookie.
+  const identityPath = path.split("?")[0];
   const needsDeviceIdentity =
-    path === "/api/auth/login" ||
-    path === "/api/lockscreen/unlock" ||
-    path === "/api/lockscreen/me";
+    identityPath === "/api/auth/login" ||
+    identityPath === "/api/lockscreen/unlock" ||
+    identityPath === "/api/lockscreen/me";
   const deviceId = needsDeviceIdentity ? getDeviceId() : undefined;
 
   if (deviceId) {
