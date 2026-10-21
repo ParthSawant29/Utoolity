@@ -161,6 +161,16 @@ async function performApi<T>(
           ? body
           : `Request failed (${response.status}).`;
 
+    if (response.status >= 400 && response.status !== 401 && response.status !== 403) {
+      window.dispatchEvent(new CustomEvent("utoolity:issue-detected", {
+        detail: {
+          appName: document.title || "Utoolity Desktop",
+          errorName: `HTTP ${response.status}`,
+          details: `${options.method ?? "GET"} ${path}\\n${message}`,
+        },
+      }));
+    }
+
     throw new ApiError(message, response.status);
   }
 
