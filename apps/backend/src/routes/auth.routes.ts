@@ -1124,44 +1124,6 @@ export default async function authRoutes(app: FastifyInstance) {
   }>("/lockscreen/register", async (request, reply) => {
     const hostname = typeof request.body?.hostname === "string" ? request.body.hostname.trim() : "";
     const displayName = typeof request.body?.displayName === "string" ? request.body.displayName.trim() : "";
-    if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{1,127}$/.test(hostname)) {
-      return reply.code(400).send({ message: "Enter a valid device host ID (letters, numbers, dots, underscores, or hyphens)." });
-    }
-    if (displayName.length < 2 || displayName.length > 80) {
-      return reply.code(400).send({ message: "Enter your name (2–80 characters)." });
-    }
-    try {
-      const users = await readUsers();
-      const existing = findByHostname(users, hostname);
-      if (existing) {
-        await establishSession(request, existing);
-        await updateSessionRecord(existing, { active: true, activeApps: [], lastActivityAt: Date.now() }, existing.deviceId ?? existing.hostname);
-        return { success: true, user: publicUser(existing), existing: true };
-      }
-      const user: InternUser = {
-        id: hostname,
-        hostname,
-        displayName,
-        password: "",
-        deviceId: hostname,
-        role: "intern",
-        preferences: { ...defaultPreferences },
-      };
-      await writeUsers([...users, user]);
-      await establishSession(request, user);
-      await updateSessionRecord(user, { active: true, activeApps: [], lastActivityAt: Date.now() }, hostname);
-      return reply.code(201).send({ success: true, user: publicUser(user), existing: false });
-    } catch (error) {
-      request.log.error(error, "Unable to register this device profile");
-      return reply.code(500).send({ message: "Unable to save this device profile." });
-    }
-  });
-
-  app.post<{
-    Body: { hostname?: string; displayName?: string };
-  }>("/lockscreen/register", async (request, reply) => {
-    const hostname = typeof request.body?.hostname === "string" ? request.body.hostname.trim() : "";
-    const displayName = typeof request.body?.displayName === "string" ? request.body.displayName.trim() : "";
     if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{1,127}$/.test(hostname)) return reply.code(400).send({ message: "Enter a valid device host ID." });
     if (displayName.length < 2 || displayName.length > 80) return reply.code(400).send({ message: "Enter your name (2–80 characters)." });
     try {
