@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 import { Bell, X, ShieldAlert, AppWindow, AlertTriangle, CheckCheck } from "lucide-react";
 
-type Notice = { id: string; title: string; message: string; type: "system" | "app" | "error"; createdAt: number };
+type Notice = { id: string; title: string; message: string; type: "system" | "app" | "error"; createdAt: number; issue?: { appName?: string; errorName?: string; details?: string } };
 
 const NOTIFICATION_STORAGE_KEY = "utoolity.notifications";
 
@@ -152,7 +152,18 @@ export default function Notifications({
             ) : (
               <div className="mt-3 max-h-[min(60vh,420px)] space-y-2 overflow-y-auto">
                 {visibleNotices.map((notice) => (
-                  <article key={notice.id} className="rounded-2xl border border-border/70 bg-background/70 p-3">
+                  <button
+                    key={notice.id}
+                    type="button"
+                    onClick={() => {
+                      if (notice.issue) {
+                        window.dispatchEvent(new CustomEvent("utoolity:reopen-issue", { detail: notice.issue }));
+                      }
+                      onClose();
+                    }}
+                    className="block w-full rounded-2xl border border-border/70 bg-background/70 p-3 text-left transition-colors hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    aria-label={notice.issue ? `Reopen issue report: ${notice.title}` : notice.title}
+                  >
                     <div className="flex items-start gap-2">
                       <span className={`mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full ${notice.type === "error" ? "bg-destructive/10 text-destructive" : "bg-muted text-muted-foreground"}`}>
                         {notice.type === "error" ? <AlertTriangle size={15} /> : notice.type === "system" ? <ShieldAlert size={15} /> : <AppWindow size={15} />}
@@ -165,7 +176,7 @@ export default function Notifications({
                         </time>
                       </div>
                     </div>
-                  </article>
+                  </button>
                 ))}
               </div>
             )}
