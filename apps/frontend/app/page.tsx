@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import Desktop from "@/components/desktop/Desktop";
 import DesktopBackground from "@/components/desktop/DesktopBackground";
 import Lockcard from "@/components/lockscreen/LockcardEntry";
-import { api, ApiError, getDeviceId } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import Image from "next/image";
 import IssueReporter from "@/components/shared/IssueReporter";
 
@@ -33,7 +33,7 @@ export default function Home() {
     const now = Date.now();
     if (now - lastSocketActivityRef.current < 10_000) return;
     lastSocketActivityRef.current = now;
-    socket.send(JSON.stringify({ type: "activity", deviceId: getDeviceId() }));
+    socket.send(JSON.stringify({ type: "activity" }));
   }, []);
 
   const connectSocketRef = useRef<() => void>(() => undefined);
@@ -61,7 +61,6 @@ export default function Home() {
       if (pendingWorkspaceRef.current !== null) {
         socket.send(JSON.stringify({
           type: "workspace",
-          deviceId: getDeviceId(),
           workspace: pendingWorkspaceRef.current,
         }));
         pendingWorkspaceRef.current = null;
@@ -141,7 +140,6 @@ export default function Home() {
       if (socket?.readyState !== WebSocket.OPEN) return;
       socket.send(JSON.stringify({
         type: "workspace",
-        deviceId: getDeviceId(),
         workspace,
       }));
       pendingWorkspaceRef.current = null;
