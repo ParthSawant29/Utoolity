@@ -312,7 +312,12 @@ function Lockcard({
   const toggleFullscreen = async () => {
     try {
       if (!document.fullscreenElement) {
-        await cardRef.current?.requestFullscreen();
+        // Fullscreen the document root rather than the lock card itself.
+        // Fullscreening only this section promotes it to the browser top layer,
+        // leaving the wallpaper and the custom cursor (siblings of the card)
+        // outside that layer; Chromium then shows a black background and hides
+        // the custom cursor.
+        await document.documentElement.requestFullscreen();
       } else {
         await document.exitFullscreen();
       }
