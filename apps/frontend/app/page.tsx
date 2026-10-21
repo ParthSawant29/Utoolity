@@ -6,6 +6,7 @@ import DesktopBackground from "@/components/desktop/DesktopBackground";
 import Lockcard from "@/components/lockscreen/LockcardEntry";
 import { api, ApiError, getDeviceId } from "@/lib/api";
 import Image from "next/image";
+import IssueReporter from "@/components/shared/IssueReporter";
 
 type ShellState = "checking" | "authenticated" | "sleep" | "locked";
 const AUTHENTICATED_SESSION_KEY = "utoolity.authenticated";
@@ -352,6 +353,7 @@ export default function Home() {
 
   return (
     <div className="relative isolate h-dvh min-h-dvh overflow-hidden font-sans text-foreground">
+      <IssueReporter />
       {shellState === "checking" ? (
         <div
           className="flex min-h-screen items-center justify-center bg-background"
