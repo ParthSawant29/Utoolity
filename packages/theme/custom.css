@@ -510,53 +510,27 @@
 
 
 /*
- * Use the bundled cursor artwork throughout the app. These rules intentionally
- * override browser and component-library cursor defaults.
+ * The native cursor is hidden globally. CustomCursor renders the SVG cursor
+ * as a fixed, pointer-events-free overlay at the top of the stacking order.
  */
 html,
 body,
 body *,
 body *::before,
 body *::after {
-  cursor: url("/cursors/bibata-pointer.svg") 12 12, auto !important;
+  cursor: none !important;
 }
 
-a,
-button,
-[role="button"],
-[role="link"],
-summary,
-select,
-input[type="checkbox"],
-input[type="radio"],
-input[type="range"],
-label[for],
-.desktop-app-icon,
-[tabindex]:not([tabindex="-1"]) {
-  cursor: url("/cursors/bibata-hand.svg") 24 18, pointer !important;
-}
-
-input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"]):not([type="range"]),
-textarea,
-[contenteditable="true"] {
-  cursor: url("/cursors/bibata-text.svg") 16 16, text !important;
-}
-
-[draggable="true"],
-.desktop-window [data-drag-handle],
-.desktop-window .active\\:cursor-grabbing:active,
-[data-cursor="move"] {
-  cursor: url("/cursors/bibata-move.svg") 16 16, move !important;
-}
-
-[aria-busy="true"],
-[role="progressbar"],
-.is-loading,
-button:disabled,
-input:disabled,
-select:disabled,
-textarea:disabled {
-  cursor: url("/cursors/bibata-loading.svg") 16 16, progress !important;
+.utoolity-custom-cursor {
+  position: fixed;
+  z-index: 2147483647;
+  display: block;
+  object-fit: contain;
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+  transition: opacity 70ms linear;
+  will-change: left, top, width, height;
 }
 
   html {
