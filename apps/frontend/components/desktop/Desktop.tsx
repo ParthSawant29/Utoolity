@@ -404,8 +404,31 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
     void api<{ preferences: Record<string, string> }>("/api/auth/preferences")
       .then(({ preferences }) => {
         Object.entries(preferences).forEach(([key, value]) => {
-          if (key !== "utoolity.wallpaper") localStorage.setItem(key, value);
+          if (key !== "utoolity.wallpaper" && key !== "utoolity.theme") {
+            localStorage.setItem(key, value);
+          }
         });
+        // The authenticated profile is the source of truth for persisted settings.
+        // If it has no explicit theme, use the OS preference rather than a stale
+        // theme left by another profile in this browser.
+        if (preferences["utoolity.theme"] === "dark" || preferences["utoolity.theme"] === "light") {
+          const savedTheme = preferences["utoolity.theme"];
+          localStorage.setItem("utoolity.theme", savedTheme);
+          root.classList.toggle("dark", savedTheme === "dark");
+          root.classList.toggle("light", savedTheme === "light");
+          root.style.colorScheme = savedTheme;
+          setIsDark(savedTheme === "dark");
+        } else {
+          localStorage.removeItem("utoolity.theme");
+          const deviceTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+          root.classList.toggle("dark", deviceTheme === "dark");
+          root.classList.toggle("light", deviceTheme === "light");
+          root.style.colorScheme = deviceTheme;
+          setIsDark(deviceTheme === "dark");
+        }
+        if (preferences["utoolity.wallpaper"]) {
+          saveWallpaperPreference(preferences["utoolity.wallpaper"]);
+        }
         if (preferences["utoolity.animations"]) {
           root.dataset.animations = preferences["utoolity.animations"].toLowerCase();
           root.dataset.animation = preferences["utoolity.animations"].toLowerCase();
