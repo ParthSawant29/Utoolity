@@ -262,8 +262,8 @@ export default async function storageRoutes(app: FastifyInstance) {
 
   app.get<{ Querystring: { path?: string } }>("/storage/download", async (request, reply) => {
     try {
-      await getUser(request);
-      const target = resolveInside(storageRoot, request.query.path ?? "");
+      const user = await getUser(request);
+      const target = requestedTarget(user, request.query.path ?? "");
       const details = await stat(target);
       if (!details.isFile()) return reply.code(400).send({ message: "Only files can be downloaded." });
       return reply.send(createReadStream(target));
@@ -292,8 +292,8 @@ export default async function storageRoutes(app: FastifyInstance) {
   app.put<{ Body: { path?: string; content?: string } }>("/storage/content", async (request, reply) => {
     try {
       requireWorkspaceEditor(request);
-      await getUser(request);
-      const target = resolveInside(storageRoot, request.body?.path ?? "");
+      const user = await getUser(request);
+      const target = requestedTarget(user, request.body?.path ?? "");
       if (typeof request.body?.content !== "string" || request.body.content.length > 5_000_000) {
         return reply.code(400).send({ message: "Invalid file content." });
       }
@@ -352,8 +352,8 @@ export default async function storageRoutes(app: FastifyInstance) {
   app.post<{ Body: PathBody }>("/storage/rename", async (request, reply) => {
     try {
       requireWorkspaceEditor(request);
-      await getUser(request);
-      const source = resolveInside(storageRoot, request.body?.path ?? "");
+      const user = await getUser(request);
+      const source = requestedTarget(user, request.body?.path ?? "");
       const name = path.basename(request.body?.name ?? "");
       if (!name || name === "." || name === "..") throw new Error("A valid name is required.");
       await rename(source, resolveInside(path.dirname(source), name));
@@ -368,9 +368,9 @@ export default async function storageRoutes(app: FastifyInstance) {
     app.post<{ Body: PathBody }>(`/storage/${operation}`, async (request, reply) => {
       try {
         requireWorkspaceEditor(request);
-        await getUser(request);
-        const source = resolveInside(storageRoot, request.body?.path ?? "");
-        const destination = resolveInside(storageRoot, request.body?.destination ?? "");
+        const user = await getUser(request);
+        const source = requestedTarget(user, request.body?.path ?? "");
+        const destination = requestedTarget(user, request.body?.destination ?? "");
         if (operation === "copy") await cp(source, destination, { recursive: true, errorOnExist: true });
         else await rename(source, destination);
         return { success: true };
