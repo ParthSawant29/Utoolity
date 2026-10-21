@@ -1170,17 +1170,19 @@ export default async function authRoutes(app: FastifyInstance) {
   });
 
   app.post<{
-    Body: { hostname?: string; displayName?: string };
+    Body: { hostname?: string; displayName?: string; password?: string };
   }>("/lockscreen/register", async (request, reply) => {
     const hostname = typeof request.body?.hostname === "string" ? request.body.hostname.trim() : "";
     const displayName = typeof request.body?.displayName === "string" ? request.body.displayName.trim() : "";
     if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{1,127}$/.test(hostname)) return reply.code(400).send({ message: "Enter a valid device host ID." });
     if (displayName.length < 2 || displayName.length > 80) return reply.code(400).send({ message: "Enter your name (2–80 characters)." });
+    const password = typeof request.body?.password === "string" ? request.body.password : "";
+    if (password.length < 8 || password.length > 1024) return reply.code(400).send({ message: "Create a password with at least 8 characters." });
     try {
       const users = await readUsers();
       const existing = findByHostname(users, hostname);
       if (existing) return reply.code(409).send({ message: "This device host ID is already registered. Enter the ID assigned to this profile." });
-      const user: InternUser = { id: hostname, hostname, displayName, password: "", deviceId: hostname, role: "intern", preferences: { ...defaultPreferences } };
+      const user: InternUser = { id: hostname, hostname, displayName, password, deviceId: hostname, role: "intern", preferences: { ...defaultPreferences } };
       await writeUsers([...users, user]);
       await establishSession(request, user);
       await updateSessionRecord(user, { active: true, activeApps: [], lastActivityAt: Date.now() }, hostname);
