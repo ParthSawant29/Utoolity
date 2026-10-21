@@ -426,7 +426,7 @@ export default function FileManager({ onOpenFile }: Props) {
       ? "server"
       : path.split("/").slice(0, -1).join("/") || "server";
 
-  const breadcrumbs = path.split("/").filter(Boolean);
+  const breadcrumbs = path.split("/").filter((part) => part && part !== "server");
 
   const storagePercent =
     storageUsage && storageUsage.totalBytes > 0
@@ -657,7 +657,7 @@ export default function FileManager({ onOpenFile }: Props) {
                   <button
                     type="button"
                     aria-label={`Open ${entry.name}`}
-                    onClick={() => openEntry(entry)}
+                    onClick={(event) => { event.stopPropagation(); setSelected(entry); setMenuOpen(false); }}
                     className="block w-full text-left"
                   >
                     <div
