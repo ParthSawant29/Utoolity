@@ -1165,7 +1165,7 @@ export default async function authRoutes(app: FastifyInstance) {
       await writeUsers([...users, user]);
       await establishSession(request, user);
       await updateSessionRecord(user, { active: true, activeApps: [], lastActivityAt: Date.now() }, hostname);
-      return reply.code(201).send({ success: true, user: publicUser(user) });
+      return reply.code(201).send({ success: true, user: { ...publicUser(user), preferences: { ...defaultPreferences, ...(user.preferences ?? {}) } } });
     } catch (error) {
       request.log.error(error, "Unable to register this device profile");
       return reply.code(500).send({ message: "Unable to save this device profile." });
@@ -1205,7 +1205,7 @@ export default async function authRoutes(app: FastifyInstance) {
         return { requiresDeviceId: true };
       }
 
-      return { user: { ...publicUser(user), locked: true } };
+      return { user: { ...publicUser(user), preferences: { ...defaultPreferences, ...(user.preferences ?? {}) }, locked: true } };
     } catch (error) {
       request.log.error(error, "Unable to load lockscreen profile");
       return reply.code(500).send({ message: "Unable to load the device profile." });
