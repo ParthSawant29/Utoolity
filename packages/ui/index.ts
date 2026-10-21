@@ -8,3 +8,4 @@ export * from "./shadcn/separator";
 export * from "./shadcn/sonner";
 export * from "./shadcn/textarea";
 export * from "./shadcn/tooltip";
+export * from "./shadcn/alert-dialog";
