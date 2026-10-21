@@ -22,6 +22,7 @@ export default function Notifications({
 }: Props) {
   const [mounted, setMounted] = useState(open);
   const [notices, setNotices] = useState<Notice[]>([]);
+  const [hasNewNotification, setHasNewNotification] = useState(false);
   const [filter, setFilter] = useState<"all" | "system" | "app" | "error">("all");
   const [clearedIds, setClearedIds] = useState<Set<string>>(new Set());
   const clearedIdsRef = useRef<Set<string>>(new Set());
@@ -66,6 +67,7 @@ export default function Notifications({
       setNotices((current) => {
         if (current.some((item) => item.id === notice.id)) return current;
         const updated = [notice, ...current].slice(0, 100);
+        setHasNewNotification(true);
         persist(updated);
         return updated;
       });
@@ -80,6 +82,7 @@ export default function Notifications({
   useEffect(() => {
     if (open) {
       setMounted(true);
+      setHasNewNotification(false);
       return;
     }
 
@@ -119,11 +122,17 @@ export default function Notifications({
 
         {notices.length > 0 && (
           <span
-            aria-label={`${notices.length} unread notifications`}
-            className="absolute -right-1 -top-1 flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 py-0.5 text-[9px] font-bold leading-none text-white ring-2 ring-background"
+            aria-label={`${notices.length} notifications`}
+            className="absolute -right-1 -top-1 flex min-w-4 items-center justify-center rounded-full bg-muted px-1 py-0.5 text-[9px] font-bold leading-none text-foreground ring-2 ring-background"
           >
             {notices.length > 99 ? "99+" : notices.length}
           </span>
+        )}
+        {hasNewNotification && !open && (
+          <span
+            aria-label="New notification"
+            className="absolute right-1.5 top-1.5 size-2 rounded-full bg-destructive ring-2 ring-background"
+          />
         )}
       </button>
 
