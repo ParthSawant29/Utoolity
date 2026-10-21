@@ -101,9 +101,7 @@ export default async function storageRoutes(app: FastifyInstance) {
       const sharedRoot = path.join(storageRoot, "shared");
       await mkdir(root, { recursive: true });
       await mkdir(sharedRoot, { recursive: true });
-      const target = requested.startsWith("users")
-        ? resolveInside(path.join(storageRoot, "interns"), requested.slice("users".length).replace(/^\/+/, ""))
-        : requestedTarget(user, requested);
+      const target = requestedTarget(user, requested);
       const entries = await readdir(target, { withFileTypes: true });
       return {
         entries: await Promise.all(entries.map(async (entry) => {
