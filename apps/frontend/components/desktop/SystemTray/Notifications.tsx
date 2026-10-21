@@ -6,6 +6,8 @@ import { Bell, X, ShieldAlert, AppWindow, AlertTriangle, CheckCheck } from "luci
 
 type Notice = { id: string; title: string; message: string; type: "system" | "app" | "error"; createdAt: number };
 
+const NOTIFICATION_STORAGE_KEY = "utoolity.notifications";
+
 type Props = {
   open: boolean;
   onToggle: () => void;
@@ -22,12 +24,33 @@ export default function Notifications({
   const [filter, setFilter] = useState<"all" | "system" | "app" | "error">("all");
 
   useEffect(() => {
+    const persist = (items: Notice[]) => {
+      try {
+        window.sessionStorage.setItem(NOTIFICATION_STORAGE_KEY, JSON.stringify(items.slice(0, 100)));
+      } catch {
+        // Notifications remain usable for this mount if session storage is unavailable.
+      }
+    };
+    try {
+      const saved = window.sessionStorage.getItem(NOTIFICATION_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved) as Notice[];
+        if (Array.isArray(parsed)) setNotices(parsed.filter((item) => item && typeof item.id === "string" && typeof item.message === "string").slice(0, 100));
+      }
+    } catch {
+      window.sessionStorage.removeItem(NOTIFICATION_STORAGE_KEY);
+    }
     const receive = (event: Event) => {
       const detail = (event as CustomEvent<Partial<Notice>>).detail;
       if (!detail || !detail.message) return;
       const type = detail.type === "system" || detail.type === "error" ? detail.type : "app";
-      const notice: Notice = { id: detail.id ?? `${Date.now()}-${Math.random()}`, title: detail.title ?? (type === "system" ? "System" : type === "error" ? "Error" : "App notification"), message: detail.message, type, createdAt: Date.now() };
-      setNotices((current) => [notice, ...current].slice(0, 100));
+      const notice: Notice = { id: detail.id ?? `${Date.now()}-${Math.random()}`, title: detail.title ?? (type === "system" ? "System" : type === "error" ? "Error" : "App notification"), message: detail.message, type, createdAt: detail.createdAt ?? Date.now() };
+      setNotices((current) => {
+        if (current.some((item) => item.id === notice.id)) return current;
+        const updated = [notice, ...current].slice(0, 100);
+        persist(updated);
+        return updated;
+      });
       if (type === "system") window.dispatchEvent(new CustomEvent("utoolity:system-notification-focus", { detail: notice }));
     };
     window.addEventListener("utoolity:notification", receive);
