@@ -45,7 +45,7 @@ export default function Notepad({ initialPath }: { initialPath?: string }) {
   return (
     <main className="flex h-full min-h-[420px] flex-col gap-3 bg-background p-4 text-foreground">
       <header className="flex items-center gap-2">
-        <input value={path} onChange={(event) => setPath(event.target.value)} placeholder="Storage file path" className="min-w-0 flex-1 rounded-xl border border-input bg-background px-3 py-2 text-sm" />
+        <div className="min-w-0 flex-1 truncate rounded-xl border border-input bg-muted/40 px-3 py-2 text-sm" title={path}>{path.split("/").filter(Boolean).at(-1) ?? "Untitled"}</div>
         <button type="button" onClick={() => void save()} className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">Save</button>
         <button type="button" onClick={() => void saveAs()} className="rounded-xl border border-border px-4 py-2 text-sm font-bold">Save as</button>
         <button type="button" onClick={() => { setPath(""); setValue(""); setMessage(""); }} className="rounded-xl border border-border px-4 py-2 text-sm font-bold">New</button>
