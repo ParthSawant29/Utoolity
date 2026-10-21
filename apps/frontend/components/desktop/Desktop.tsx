@@ -57,11 +57,11 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
     );
   }, [isSharedViewer, sharedPermission]);
   const closeMenu = useCallback(() => setMenu(null), []);
-  const updateWindowState = useCallback((key: string, window: WindowState) => {
+  const updateWindowState = useCallback((key: string, windowState: WindowState) => {
     if (isSharedViewer) {
       if (sharedPermission === "editor") {
         window.dispatchEvent(new CustomEvent("utoolity:shared-command-outgoing", {
-          detail: { command: "window-state", payload: { key, window } },
+          detail: { command: "window-state", payload: { key, window: windowState } },
         }));
       }
       return;
