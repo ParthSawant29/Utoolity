@@ -373,7 +373,7 @@ export default function DesktopWindow({
           return;
         }
 
-        setMinimized(true);
+        setMaximizedState(!maximized);
       }}
       className={`desktop-window fixed ${
         active ? "z-50" : "z-40"
