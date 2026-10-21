@@ -158,7 +158,7 @@ export default function FileManager({ onOpenFile }: Props) {
       localStorage.removeItem("utoolity.files.folder-picker");
       void load("server");
     } else {
-      void load(localStorage.getItem("utoolity.files.path") ?? "server");
+      void load("server");
     }
 
     // Initial hydration only.
