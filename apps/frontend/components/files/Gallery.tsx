@@ -11,6 +11,7 @@ export default function Gallery({ initialPath }: { initialPath?: string }) {
   const [index, setIndex] = useState(0);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const image = images[index];
 
   useEffect(() => {
     setLoadError(null);
@@ -92,7 +93,6 @@ export default function Gallery({ initialPath }: { initialPath?: string }) {
     return () => window.removeEventListener("keydown", move);
   }, [images.length, initialPath]);
 
-  const image = images[index];
   return (
     <main className="flex h-full min-h-[420px] flex-col bg-background p-5 text-foreground">
       <h2 className="text-lg font-bold">Gallery</h2>
