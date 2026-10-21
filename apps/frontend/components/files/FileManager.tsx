@@ -512,10 +512,7 @@ export default function FileManager({ onOpenFile }: Props) {
         {breadcrumbs
           .filter((part) => part !== "server")
           .map((part, index, parts) => {
-            const target = [
-              "server",
-              ...parts.slice(0, index + 1),
-            ].join("/");
+            const target = ["server", ...parts.slice(0, index + 1)].join("/");
 
             return (
               <span key={target} className="flex min-w-0 items-center gap-1">
