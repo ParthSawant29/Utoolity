@@ -303,7 +303,8 @@ async function establishSession(
 ): Promise<void> {
   const session = getSession(request);
   session.userId = user.id;
-  session.deviceId = getDeviceId(request, user.deviceId ?? user.macId);
+  // After profile resolution, use the server-side assigned identity, not the lock-screen cache.
+  session.deviceId = user.deviceId ?? user.macId;
   session.role = user.role;
   session.lastActivityAt = Date.now();
   await saveSession(request);
@@ -349,7 +350,7 @@ export default async function authRoutes(app: FastifyInstance) {
         status: "open",
       };
       reports.push(report);
-      await writeFile(reportsFilePath, `${JSON.stringify({ reports }, null, 2)}\\n`, "utf8");
+      await writeFile(reportsFilePath, `${JSON.stringify({ reports }, null, 2)}\n`, "utf8");
       return reply.code(201).send({ success: true, reportId: report.id });
     } catch (error) {
       request.log.error(error, "Unable to save issue report");
@@ -442,7 +443,7 @@ export default async function authRoutes(app: FastifyInstance) {
           active: true,
           activeApps: [],
           lastActivityAt: Date.now(),
-        }, getDeviceId(request, user.deviceId ?? user.macId));
+        }, user.deviceId ?? user.macId);
 
         return {
           user: publicUser(user),
@@ -469,7 +470,7 @@ export default async function authRoutes(app: FastifyInstance) {
             active: false,
             activeApps: [],
             lastActivityAt: Date.now(),
-          }, getDeviceId(request, user.deviceId ?? user.macId));
+          }, user.deviceId ?? user.macId);
         }
       }
       await destroySession(request);
@@ -1184,7 +1185,7 @@ export default async function authRoutes(app: FastifyInstance) {
           active: true,
           activeApps: [],
           lastActivityAt: Date.now(),
-        }, getDeviceId(request, user.deviceId ?? user.macId));
+        }, user.deviceId ?? user.macId);
 
         return {
           success: true,
