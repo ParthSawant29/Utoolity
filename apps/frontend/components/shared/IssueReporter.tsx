@@ -25,6 +25,13 @@ export default function IssueReporter() {
       setDescription("");
       setStatus("");
       setReported(false);
+      window.dispatchEvent(new CustomEvent("utoolity:notification", {
+        detail: {
+          type: "error",
+          title: "Issue detected",
+          message: `${detail.errorName || "Application error"} in ${detail.appName || "Utoolity Desktop"}. You can report it from the open dialog.`,
+        },
+      }));
       setOpen(true);
     };
     const runtimeError = (event: ErrorEvent) => {
