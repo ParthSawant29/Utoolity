@@ -51,7 +51,8 @@ async function performApi<T>(
     identityPath === "/api/auth/login" ||
     identityPath === "/api/lockscreen/unlock" ||
     identityPath === "/api/lockscreen/me";
-  const deviceId = needsDeviceIdentity ? getDeviceId() : undefined;
+  const explicitlyProvidedDeviceId = headers.get("X-Utoolity-Device-Id")?.trim();
+  const deviceId = explicitlyProvidedDeviceId || (needsDeviceIdentity ? getDeviceId() : undefined);
 
   if (deviceId) {
     headers.set("X-Utoolity-Device-Id", deviceId);
