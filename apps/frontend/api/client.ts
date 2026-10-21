@@ -1,5 +1,4 @@
 import axios from "axios";
-import { getDeviceId } from "../lib/api";
 
 export const api = axios.create({
   baseURL: "/api",
@@ -8,8 +7,5 @@ export const api = axios.create({
   },
 });
 
-api.interceptors.request.use((config) => {
-  const deviceId = getDeviceId();
-  if (deviceId) config.headers.set("X-Utoolity-Device-Id", deviceId);
-  return config;
-});
+// Authenticated app requests use the HttpOnly session cookie. Do not attach
+// the lock-screen's cached device identifier to every app request.
