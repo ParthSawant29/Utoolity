@@ -377,7 +377,7 @@ export default async function authRoutes(app: FastifyInstance) {
     const activeApps = request.body && Array.isArray(request.body.openApps)
       ? request.body.openApps
       : [];
-    const deviceId = getDeviceId(request, user.deviceId ?? user.hostname);
+    const deviceId = user.deviceId ?? user.hostname;
     const currentSessions = await readSessions();
     const existing = currentSessions[`${user.id}:${deviceId}`] ?? currentSessions[user.id];
     await updateSessionRecord(user, {
@@ -399,7 +399,7 @@ export default async function authRoutes(app: FastifyInstance) {
       const user = findById(users, session.userId);
       if (user) {
         const sessions = await readSessions();
-        const deviceId = getDeviceId(request, user.deviceId ?? user.hostname);
+        const deviceId = user.deviceId ?? user.hostname;
         const existing = sessions[`${user.id}:${deviceId}`] ?? sessions[user.id];
         await updateSessionRecord(user, {
           active: true,
