@@ -24,7 +24,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { api, API_URL, ApiError } from "@/lib/api";
+import { api, API_URL } from "@/lib/api";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@repo/ui/shadcn/dialog";
 
 type Entry = {
