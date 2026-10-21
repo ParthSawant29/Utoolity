@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { api, API_URL } from "@/lib/api";
 
 type Entry = { name: string; path: string; type: "file" | "directory"; size: number };
-const imagePattern = /\\.(avif|bmp|gif|jpe?g|png|svg|webp)$/i;
+const imagePattern = /\.(avif|bmp|gif|jpe?g|png|svg|webp)$/i;
 
 export default function Gallery({ initialPath }: { initialPath?: string }) {
   const [images, setImages] = useState<Entry[]>([]);
