@@ -1,7 +1,7 @@
 
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Bell, X, ShieldAlert, AppWindow, AlertTriangle, CheckCheck } from "lucide-react";
 
 type Notice = { id: string; title: string; message: string; type: "system" | "app" | "error"; createdAt: number; issue?: { appName?: string; errorName?: string; details?: string } };
@@ -24,6 +24,7 @@ export default function Notifications({
   const [notices, setNotices] = useState<Notice[]>([]);
   const [filter, setFilter] = useState<"all" | "system" | "app" | "error">("all");
   const [clearedIds, setClearedIds] = useState<Set<string>>(new Set());
+  const clearedIdsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const persist = (items: Notice[]) => {
@@ -37,6 +38,7 @@ export default function Notifications({
     try {
       const savedCleared = JSON.parse(window.sessionStorage.getItem(CLEARED_NOTIFICATION_IDS_KEY) || "[]") as unknown;
       if (Array.isArray(savedCleared)) cleared = new Set(savedCleared.filter((id): id is string => typeof id === "string"));
+      clearedIdsRef.current = cleared;
       setClearedIds(cleared);
       const saved = window.sessionStorage.getItem(NOTIFICATION_STORAGE_KEY);
       if (saved) {
@@ -49,7 +51,7 @@ export default function Notifications({
     const receive = (event: Event) => {
       const detail = (event as CustomEvent<Partial<Notice>>).detail;
       if (!detail || !detail.message) return;
-      if (cleared.has(detail.id ?? "")) return;
+      if (clearedIdsRef.current.has(detail.id ?? "")) return;
       const type = detail.type === "system" || detail.type === "error" ? detail.type : "app";
       const notice: Notice = {
         id: detail.id ?? `${Date.now()}-${Math.random()}`,
@@ -156,7 +158,7 @@ export default function Notifications({
                     onClick={() => {
                       const ids = notices.map((notice) => notice.id);
                       const nextCleared = new Set([...clearedIds, ...ids]);
-                      cleared = nextCleared;
+                      clearedIdsRef.current = nextCleared;
                       setClearedIds(nextCleared);
                       setNotices([]);
                       try {
