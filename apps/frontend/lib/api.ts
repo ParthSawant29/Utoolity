@@ -161,7 +161,7 @@ async function performApi<T>(
           ? body
           : `Request failed (${response.status}).`;
 
-    if (response.status >= 400 && response.status !== 401 && response.status !== 403) {
+    if (path !== "/api/auth/report-issue" && response.status >= 400 && response.status !== 401 && response.status !== 403) {
       window.dispatchEvent(new CustomEvent("utoolity:issue-detected", {
         detail: {
           appName: document.title || "Utoolity Desktop",
