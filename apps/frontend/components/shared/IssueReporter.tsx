@@ -31,6 +31,11 @@ export default function IssueReporter() {
         title: "Issue detected",
         message: `${detail.errorName || "Application error"} in ${detail.appName || "Utoolity Desktop"}. You can report it from the open dialog.`,
         createdAt: Date.now(),
+        issue: {
+          appName: detail.appName || document.title || "Utoolity Desktop",
+          errorName: detail.errorName || "Application error",
+          details: detail.details || "An application issue was detected.",
+        },
       };
       // Buffer the notification before dispatching it. The tray may not have
       // mounted yet when a startup error is detected.
@@ -62,10 +67,22 @@ export default function IssueReporter() {
         },
       }));
     };
+    const reopenIssue = (event: Event) => {
+      const detail = (event as CustomEvent<IssueDetected>).detail ?? {};
+      setAppName(detail.appName?.slice(0, 120) || document.title || "Utoolity Desktop");
+      setErrorName(detail.errorName?.slice(0, 160) || "Application error");
+      setDetails(detail.details?.slice(0, 12000) || "An application issue was detected.");
+      setDescription("");
+      setStatus("");
+      setReported(false);
+      setOpen(true);
+    };
+    window.addEventListener("utoolity:reopen-issue", reopenIssue);
     window.addEventListener("utoolity:issue-detected", receive);
     window.addEventListener("error", runtimeError);
     window.addEventListener("unhandledrejection", unhandledRejection);
     return () => {
+      window.removeEventListener("utoolity:reopen-issue", reopenIssue);
       window.removeEventListener("utoolity:issue-detected", receive);
       window.removeEventListener("error", runtimeError);
       window.removeEventListener("unhandledrejection", unhandledRejection);
