@@ -44,10 +44,18 @@ async function performApi<T>(
     typeof FormData !== "undefined" && options.body instanceof FormData;
 
   const headers = new Headers(options.headers);
-  const deviceId = getDeviceId();
+  // Cached device identity is only used before the shell has an authenticated
+  // profile (the lock-screen flow). Normal app requests rely on the session cookie.
+  const needsDeviceIdentity =
+    path === "/api/auth/login" ||
+    path === "/api/lockscreen/unlock" ||
+    path === "/api/lockscreen/me";
+  const deviceId = needsDeviceIdentity ? getDeviceId() : undefined;
 
   if (deviceId) {
     headers.set("X-Utoolity-Device-Id", deviceId);
+  } else {
+    headers.delete("X-Utoolity-Device-Id");
   }
 
   if (isFormData) {
