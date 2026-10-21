@@ -69,7 +69,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
     setOpenApps((current) =>
       current.map((item) =>
         `${item.app}:${item.filePath ?? ""}` === key
-          ? { ...item, window }
+          ? { ...item, window: windowState }
           : item,
       ),
     );
@@ -311,7 +311,22 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
           polygonFolder: localStorage.getItem("utoolity.polygon.folder"),
         },
       };
-      localStorage.setItem(`utoolity.open-apps.${workspaceUserId}`, JSON.stringify(openApps));
+      const serializableApps = openApps.map((item) => ({
+        app: item.app,
+        ...(item.filePath !== undefined ? { filePath: item.filePath } : {}),
+        ...(item.window ? {
+          window: {
+            position: { x: item.window.position.x, y: item.window.position.y },
+            size: { width: item.window.size.width, height: item.window.size.height },
+            maximized: item.window.maximized,
+            minimized: item.window.minimized,
+          },
+        } : {}),
+      }));
+      localStorage.setItem(
+        `utoolity.open-apps.${workspaceUserId}`,
+        JSON.stringify(serializableApps),
+      );
       // Geometry stays local while the pointer moves; send one settled snapshot
       // over the existing authenticated WebSocket after the gesture.
       window.dispatchEvent(new CustomEvent("utoolity:workspace-state-changed", {
