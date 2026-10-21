@@ -25,6 +25,7 @@ import {
   X,
 } from "lucide-react";
 import { api, API_URL, ApiError } from "@/lib/api";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@repo/ui/shadcn/dialog";
 
 type Entry = {
   name: string;
@@ -80,6 +81,9 @@ export default function FileManager({ onOpenFile }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [folderName, setFolderName] = useState("");
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [renameName, setRenameName] = useState("");
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [folderDialogOpen, setFolderDialogOpen] = useState(false);
   const [folderPickerMode, setFolderPickerMode] = useState(false);
   const [folderPickerRequester, setFolderPickerRequester] = useState<string | null>(null);
@@ -315,56 +319,35 @@ export default function FileManager({ onOpenFile }: Props) {
 
   const renameSelected = async () => {
     if (!selected) return;
-
-    const name = window.prompt("Rename", selected.name);
-
-    if (!name?.trim() || name.trim() === selected.name) return;
-
+    const name = renameName.trim();
+    if (!name || name === selected.name || name === "." || name === ".." || name.includes("/") || name.includes("\\")) {
+      setError("Enter a different valid name without path separators.");
+      return;
+    }
     await withBusy(async () => {
       try {
-        await api("/api/storage/rename", {
-          method: "POST",
-          body: JSON.stringify({
-            path: selected.path,
-            name: name.trim(),
-          }),
-        });
-
+        await api("/api/storage/rename", { method: "POST", body: JSON.stringify({ path: selected.path, name }) });
+        setRenameDialogOpen(false);
         await load(path);
       } catch (cause) {
-        setError(
-          cause instanceof Error ? cause.message : "Unable to rename.",
-        );
+        setError(cause instanceof Error ? cause.message : "Unable to rename.");
       }
     });
   };
 
   const deleteSelected = async () => {
-    if (
-      !selected ||
-      !window.confirm(
-        `Delete "${selected.name}"?${
-          selected.type === "directory"
-            ? " Its contents will also be deleted."
-            : ""
-        }`,
-      )
-    ) {
-      return;
-    }
+    if (selected) setDeleteDialogOpen(true);
+  };
 
+  const confirmDelete = async () => {
+    if (!selected) return;
     await withBusy(async () => {
       try {
-        await api("/api/storage/delete", {
-          method: "POST",
-          body: JSON.stringify({ path: selected.path }),
-        });
-
+        await api("/api/storage/delete", { method: "POST", body: JSON.stringify({ path: selected.path }) });
+        setDeleteDialogOpen(false);
         await load(path);
       } catch (cause) {
-        setError(
-          cause instanceof Error ? cause.message : "Unable to delete.",
-        );
+        setError(cause instanceof Error ? cause.message : "Unable to delete.");
       }
     });
   };
@@ -785,7 +768,7 @@ export default function FileManager({ onOpenFile }: Props) {
 
                         <button
                           type="button"
-                          onClick={() => void renameSelected()}
+                          onClick={() => { setRenameName(selected?.name ?? ""); setRenameDialogOpen(true); setMenuOpen(false); }}
                           className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-accent"
                         >
                           <Pencil className="size-4" />
@@ -993,6 +976,33 @@ export default function FileManager({ onOpenFile }: Props) {
         </div>
       )}
 
+      <Dialog open={renameDialogOpen} onOpenChange={setRenameDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename item</DialogTitle>
+            <DialogDescription>Enter a new name. Path separators are not allowed.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={(event) => { event.preventDefault(); void renameSelected(); }} className="space-y-4">
+            <input autoFocus value={renameName} onChange={(event) => setRenameName(event.target.value)} maxLength={180} className="w-full rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" />
+            <DialogFooter>
+              <button type="button" onClick={() => setRenameDialogOpen(false)} className="rounded-lg border border-border px-4 py-2 text-sm font-semibold">Cancel</button>
+              <button type="submit" disabled={!renameName.trim() || busy} className="rounded-lg bg-primary px-4 py-2 text-sm font-bold text-primary-foreground disabled:opacity-50">Rename</button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {selected?.type === "directory" ? "folder" : "file"}?</DialogTitle>
+            <DialogDescription>Delete “{selected?.name}”? {selected?.type === "directory" ? "Everything inside this folder will also be deleted." : "This action cannot be undone."}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <button type="button" onClick={() => setDeleteDialogOpen(false)} className="rounded-lg border border-border px-4 py-2 text-sm font-semibold">Cancel</button>
+            <button type="button" onClick={() => void confirmDelete()} disabled={busy} className="rounded-lg bg-destructive px-4 py-2 text-sm font-bold text-white disabled:opacity-50">Delete</button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       {shareOpen && (
         <div
           className="fixed inset-0 z-[90] flex items-center justify-center bg-black/45 p-4 backdrop-blur-sm"
