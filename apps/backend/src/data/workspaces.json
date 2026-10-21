@@ -9,23 +9,12 @@
       }
     },
     "Wraith OS": {
-      "openApps": [
-        {
-          "app": "bounding-box",
-          "window": {
-            "position": {
-              "x": 177.1875,
-              "y": 0
-            },
-            "size": {
-              "width": 1354.375,
-              "height": 780
-            },
-            "maximized": false,
-            "minimized": false
-          }
-        }
-      ]
+      "openApps": [],
+      "activeAppKey": null,
+      "context": {
+        "boundingBoxFolder": null,
+        "polygonFolder": null
+      }
     }
   }
 }

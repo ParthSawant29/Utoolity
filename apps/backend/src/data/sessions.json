@@ -3,13 +3,13 @@
     "L-MHP-IXMT2:L-MHP-IXMT2": {
       "userId": "L-MHP-IXMT2",
       "hostname": "L-MHP-IXMT2",
-      "displayName": "Harshal Chaudhari",
+      "displayName": "Intern Harshal",
       "deviceId": "L-MHP-IXMT2",
       "role": "intern",
-      "active": true,
+      "active": false,
       "activeApps": [],
-      "lastActivityAt": 1792529883699,
-      "updatedAt": 1792529883700
+      "lastActivityAt": 1792557077104,
+      "updatedAt": 1792557319023
     },
     "Wraith OS:wraith-os": {
       "userId": "Wraith OS",
@@ -19,8 +19,8 @@
       "role": "intern",
       "active": true,
       "activeApps": [],
-      "lastActivityAt": 1792527758236,
-      "updatedAt": 1792527758236
+      "lastActivityAt": 1792557386868,
+      "updatedAt": 1792557386868
     }
   }
 }
