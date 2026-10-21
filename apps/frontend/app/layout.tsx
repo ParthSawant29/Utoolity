@@ -4,6 +4,7 @@ import { TooltipProvider } from "@repo/ui/shadcn/tooltip";
 import Sidebar from "@/components/shared/Sidebar";
 import DeviceTheme from "@/components/shared/DeviceTheme";
 import BrowserGuards from "@/components/shared/BrowserGuards";
+import CustomCursor from "@/components/shared/CustomCursor";
 import "./globals.css";
 
 const nunito = Nunito({
@@ -30,6 +31,7 @@ export default function RootLayout({
     >
       <body className="bg-background min-h-full font-sans overscroll-none">
         <DeviceTheme />
+        <CustomCursor />
         <BrowserGuards />
         <TooltipProvider delayDuration={200}>
           <div className="flex min-h-screen">
