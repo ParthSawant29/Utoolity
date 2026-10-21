@@ -30,7 +30,7 @@ export type DesktopAppId =
   | "notepad";
 
 export const appTitles: Record<DesktopAppId, string> = {
-  files: "Files",
+  files: "File Manager",
   settings: "Settings",
   "polygon-annotation": "Polygon Annotation",
   "video-converter": "Video Converter",
