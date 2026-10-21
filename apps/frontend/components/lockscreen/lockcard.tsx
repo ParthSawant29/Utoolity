@@ -78,6 +78,29 @@ function applyProfilePreferences(preferences?: Record<string, string>) {
   localStorage.setItem("utoolity.grain", grain);
   root.dataset.grain = grain.toLowerCase();
 }
+function recordLockscreenError(title: string, message: string, errorName = "Lockscreen error") {
+  const notice = {
+    id: `lockscreen-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    type: "error" as const,
+    title,
+    message: `${errorName}: ${message}`,
+    createdAt: Date.now(),
+  };
+  // Persist before dispatch so startup errors survive refresh and do not depend
+  // on whether the tray listener has mounted yet.
+  try {
+    const saved = JSON.parse(window.sessionStorage.getItem("utoolity.notifications") || "[]") as Array<{ id?: string }>;
+    window.sessionStorage.setItem("utoolity.notifications", JSON.stringify([notice, ...saved.filter((item) => item.id !== notice.id)].slice(0, 100)));
+  } catch {
+    try {
+      window.sessionStorage.setItem("utoolity.notifications", JSON.stringify([notice]));
+    } catch {
+      // Keep the lock screen usable if browser storage is unavailable.
+    }
+  }
+  window.dispatchEvent(new CustomEvent("utoolity:notification", { detail: notice }));
+}
+
 function getGreeting(date: Date): string {
   const hour = date.getHours();
   if (hour >= 22 || hour < 5) return "STILL UP?";
@@ -209,6 +232,7 @@ function Lockcard({
       } catch (cause) {
         if (!active) return;
         console.warn("Lock-screen profile lookup failed; preserving cached profile if available.", cause);
+        recordLockscreenError("Lock-screen profile lookup failed", cause instanceof Error ? cause.message : String(cause), cause instanceof ApiError ? `HTTP ${cause.status}` : "Profile lookup error");
         // Never turn a transport/server error into a fake Guest assignment.
         // Guest is shown only when the backend explicitly resolves Guest.
         setProfile((current) => current ?? null);
@@ -309,6 +333,7 @@ function Lockcard({
       setProfile({ ...response.user, locked: true });
       setDeviceIdInput("");
     } catch (cause) {
+      recordLockscreenError("Device ID lookup failed", cause instanceof Error ? cause.message : String(cause), cause instanceof ApiError ? `HTTP ${cause.status}` : "Device ID error");
       setError(cause instanceof Error ? cause.message : "Unable to verify this device ID.");
     } finally {
       setChecking(false);
@@ -338,6 +363,7 @@ function Lockcard({
       setHostname(user.hostname);
       leaveLockscreen();
     } catch (cause) {
+      recordLockscreenError("Device registration failed", cause instanceof Error ? cause.message : String(cause), cause instanceof ApiError ? `HTTP ${cause.status}` : "Registration error");
       setError(cause instanceof Error ? cause.message : "Unable to create this profile.");
     } finally {
       setChecking(false);
@@ -367,6 +393,7 @@ function Lockcard({
       window.localStorage.setItem(HOSTNAME_STORAGE_KEY, user.hostname);
       leaveLockscreen();
     } catch (cause) {
+      recordLockscreenError("Unlock failed", cause instanceof Error ? cause.message : String(cause), cause instanceof ApiError ? `HTTP ${cause.status}` : "Authentication error");
       if (!(cause instanceof ApiError && cause.status === 401)) {
         console.error("Lockscreen authentication failed:", cause);
       }
@@ -388,7 +415,8 @@ function Lockcard({
       } else {
         await document.exitFullscreen();
       }
-    } catch {
+    } catch (cause) {
+      recordLockscreenError("Fullscreen unavailable", cause instanceof Error ? cause.message : String(cause), "Fullscreen error");
       setError("Fullscreen is not available.");
     }
   };
