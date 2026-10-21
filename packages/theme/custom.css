@@ -230,10 +230,7 @@
   [data-wallpaper="ribbons"] .lockscreen-wallpaper { background: linear-gradient(135deg, #1a1647, #084b61 52%, #101d4a); }
 
   .desktop-logo {
-    filter:
-      brightness(0)
-      invert(1)
-      drop-shadow(0 0 34px rgb(255 255 255 / 24%));
+    filter: brightness(0) invert(1);
   }
 
   .desktop-context-menu {
