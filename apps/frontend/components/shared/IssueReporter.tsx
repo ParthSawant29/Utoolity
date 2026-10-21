@@ -25,13 +25,22 @@ export default function IssueReporter() {
       setDescription("");
       setStatus("");
       setReported(false);
-      window.dispatchEvent(new CustomEvent("utoolity:notification", {
-        detail: {
-          type: "error",
-          title: "Issue detected",
-          message: `${detail.errorName || "Application error"} in ${detail.appName || "Utoolity Desktop"}. You can report it from the open dialog.`,
-        },
-      }));
+      const notice = {
+        id: `issue-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        type: "error" as const,
+        title: "Issue detected",
+        message: `${detail.errorName || "Application error"} in ${detail.appName || "Utoolity Desktop"}. You can report it from the open dialog.`,
+        createdAt: Date.now(),
+      };
+      // Buffer the notification before dispatching it. The tray may not have
+      // mounted yet when a startup error is detected.
+      try {
+        const existing = JSON.parse(window.sessionStorage.getItem("utoolity.notifications") || "[]") as typeof notice[];
+        window.sessionStorage.setItem("utoolity.notifications", JSON.stringify([notice, ...existing.filter((item) => item.id !== notice.id)].slice(0, 100)));
+      } catch {
+        window.sessionStorage.setItem("utoolity.notifications", JSON.stringify([notice]));
+      }
+      window.dispatchEvent(new CustomEvent("utoolity:notification", { detail: notice }));
       setOpen(true);
     };
     const runtimeError = (event: ErrorEvent) => {
