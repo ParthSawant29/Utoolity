@@ -44,7 +44,7 @@ type ResizeDirection =
 const MIN_WIDTH = 520;
 const MIN_HEIGHT = 420;
 const SNAP_EDGE_PX = 16;
-const PULL_TO_MINIMIZE_PX = 84;
+const PULL_TO_RESTORE_PX = 84;
 
 type ResizeState = {
   direction: ResizeDirection;
@@ -210,10 +210,12 @@ export default function DesktopWindow({
     }
 
     if (state.wasMaximized) {
-      if (event.clientY - state.startY >= PULL_TO_MINIMIZE_PX) {
+      if (event.clientY - state.startY >= PULL_TO_RESTORE_PX) {
+        setSize({ width: Math.min(1000, Math.max(MIN_WIDTH, window.innerWidth - 48)), height: Math.min(780, Math.max(MIN_HEIGHT, window.innerHeight - 96)) });
+        setPosition({ x: event.clientX - window.innerWidth / 2, y: event.clientY - window.innerHeight / 2 + 390 });
+        setMaximizedState(false);
         dragRef.current.started = false;
         setInteracting(false);
-        setMinimized(true);
       }
       return;
     }
