@@ -117,10 +117,14 @@ export default function Notifications({
       >
         <Bell size={18} strokeWidth={1.9} />
 
-        <span
-          aria-hidden="true"
-          className="absolute right-2 top-2 size-2 rounded-full bg-destructive ring-2 ring-background"
-        />
+        {notices.length > 0 && (
+          <span
+            aria-label={`${notices.length} unread notifications`}
+            className="absolute -right-1 -top-1 flex min-w-4 items-center justify-center rounded-full bg-destructive px-1 py-0.5 text-[9px] font-bold leading-none text-white ring-2 ring-background"
+          >
+            {notices.length > 99 ? "99+" : notices.length}
+          </span>
+        )}
       </button>
 
       {mounted && (
@@ -201,13 +205,28 @@ export default function Notifications({
                     key={notice.id}
                     type="button"
                     onClick={() => {
+                      // Opening a notification consumes it. Persist the removal
+                      // and tombstone its ID so refreshes or repeated events do
+                      // not bring it back.
+                      const nextCleared = new Set(clearedIdsRef.current);
+                      nextCleared.add(notice.id);
+                      clearedIdsRef.current = nextCleared;
+                      setClearedIds(nextCleared);
+                      setNotices((current) => {
+                        const updated = current.filter((item) => item.id !== notice.id);
+                        try {
+                          window.sessionStorage.setItem(NOTIFICATION_STORAGE_KEY, JSON.stringify(updated));
+                          window.sessionStorage.setItem(CLEARED_NOTIFICATION_IDS_KEY, JSON.stringify([...nextCleared].slice(-500)));
+                        } catch {
+                          // Removal still applies to the current session state.
+                        }
+                        return updated;
+                      });
                       onClose();
                       if (notice.issue) {
-                        // Dispatch after the tray starts closing so the modal is
-                        // not obscured by the tray's closing overlay.
                         window.setTimeout(() => {
                           window.dispatchEvent(new CustomEvent("utoolity:reopen-issue", { detail: notice.issue }));
-                        }, 0);
+                        }, 160);
                       }
                     }}
                     className="block w-full rounded-2xl border border-border/70 bg-background/70 p-3 text-left transition-colors hover:bg-accent/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
