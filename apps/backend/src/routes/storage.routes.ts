@@ -44,11 +44,13 @@ function storageErrorStatus(error: unknown) {
 }
 
 function requestedTarget(user: UserRecord, requested: string) {
-  if (requested === "server") return userRoot(user);
+  // Every storage path belongs to the active profile's virtual filesystem.
+  // "server" is the UI's virtual root label, not a shared host filesystem path.
+  if (requested === "server" || requested === "" || requested === "/") return userRoot(user);
   if (requested.startsWith("server/")) {
     return resolveInside(userRoot(user), requested.slice("server/".length));
   }
-  return resolveInside(storageRoot, requested);
+  return resolveInside(userRoot(user), requested.replace(/^\\/+/, ""));
 }
 
 async function getUser(request: FastifyRequest): Promise<UserRecord> {
