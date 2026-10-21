@@ -310,6 +310,53 @@ async function establishSession(
 }
 
 export default async function authRoutes(app: FastifyInstance) {
+  app.post<{
+    Body: { appName?: string; errorName?: string; details?: string; description?: string };
+  }>("/auth/report-issue", async (request, reply) => {
+    const userId = getSession(request).userId;
+    if (!userId) return reply.code(401).send({ message: "Not authenticated." });
+
+    const body = request.body ?? {};
+    const appName = typeof body.appName === "string" ? body.appName.trim().slice(0, 120) : "Desktop";
+    const errorName = typeof body.errorName === "string" ? body.errorName.trim().slice(0, 160) : "Application error";
+    const details = typeof body.details === "string" ? body.details.trim().slice(0, 12000) : "";
+    const description = typeof body.description === "string" ? body.description.trim().slice(0, 4000) : "";
+    if (!appName || !errorName || (!details && !description)) {
+      return reply.code(400).send({ message: "App name, error name, and error details or description are required." });
+    }
+
+    try {
+      const users = await readUsers();
+      const user = findById(users, userId);
+      if (!user) return reply.code(401).send({ message: "Session user no longer exists." });
+      const reportsFilePath = fileURLToPath(new URL("../data/issue-reports.json", import.meta.url));
+      let reports: Array<Record<string, unknown>> = [];
+      try {
+        const raw = await readFile(reportsFilePath, "utf8");
+        const parsed = JSON.parse(raw) as { reports?: Array<Record<string, unknown>> };
+        reports = Array.isArray(parsed.reports) ? parsed.reports : [];
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+      }
+      const report = {
+        id: `issue-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        appName,
+        errorName,
+        details,
+        description,
+        reportedBy: { id: user.id, hostname: user.hostname, displayName: user.displayName, role: user.role },
+        reportedAt: new Date().toISOString(),
+        status: "open",
+      };
+      reports.push(report);
+      await writeFile(reportsFilePath, `${JSON.stringify({ reports }, null, 2)}\\n`, "utf8");
+      return reply.code(201).send({ success: true, reportId: report.id });
+    } catch (error) {
+      request.log.error(error, "Unable to save issue report");
+      return reply.code(500).send({ message: "Unable to save the issue report. Please try again." });
+    }
+  });
+
   app.get("/auth/workspace", async (request, reply) => {
     const userId = getSession(request).userId;
     if (!userId) return reply.code(401).send({ message: "Not authenticated." });
