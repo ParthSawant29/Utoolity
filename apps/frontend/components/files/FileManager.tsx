@@ -141,11 +141,9 @@ export default function FileManager({ onOpenFile }: Props) {
           ? loadError.message
           : "Unable to load files.";
 
-      setError(
-        loadError instanceof ApiError && loadError.status === 401
-          ? "Your session is no longer authenticated. Close Files, sign in again, then reopen it."
-          : message,
-      );
+      // File Manager reports the storage operation's actual error. Desktop
+      // authentication is owned by the shell, not by individual applications.
+      setError(message);
 
       setEntries([]);
     } finally {
