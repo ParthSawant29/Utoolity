@@ -2,7 +2,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Bell, X } from "lucide-react";
+import { Bell, X, ShieldAlert, AppWindow, AlertTriangle, CheckCheck } from "lucide-react";
+
+type Notice = { id: string; title: string; message: string; type: "system" | "app" | "error"; createdAt: number };
 
 type Props = {
   open: boolean;
@@ -16,6 +18,23 @@ export default function Notifications({
   onClose,
 }: Props) {
   const [mounted, setMounted] = useState(open);
+  const [notices, setNotices] = useState<Notice[]>([]);
+  const [filter, setFilter] = useState<"all" | "system" | "app" | "error">("all");
+
+  useEffect(() => {
+    const receive = (event: Event) => {
+      const detail = (event as CustomEvent<Partial<Notice>>).detail;
+      if (!detail || !detail.message) return;
+      const type = detail.type === "system" || detail.type === "error" ? detail.type : "app";
+      const notice: Notice = { id: detail.id ?? `${Date.now()}-${Math.random()}`, title: detail.title ?? (type === "system" ? "System" : type === "error" ? "Error" : "App notification"), message: detail.message, type, createdAt: Date.now() };
+      setNotices((current) => [notice, ...current].slice(0, 100));
+      if (type === "system") window.dispatchEvent(new CustomEvent("utoolity:system-notification-focus", { detail: notice }));
+    };
+    window.addEventListener("utoolity:notification", receive);
+    return () => window.removeEventListener("utoolity:notification", receive);
+  }, []);
+
+  const visibleNotices = notices.filter((notice) => filter === "all" || notice.type === filter);
 
   useEffect(() => {
     if (open) {
