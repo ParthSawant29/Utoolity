@@ -27,8 +27,33 @@ export default function IssueReporter() {
       setReported(false);
       setOpen(true);
     };
+    const runtimeError = (event: ErrorEvent) => {
+      receive(new CustomEvent("utoolity:issue-detected", {
+        detail: {
+          appName: document.title || "Utoolity Desktop",
+          errorName: event.message || "Unhandled JavaScript error",
+          details: [event.filename, event.lineno ? `line ${event.lineno}` : "", event.error?.stack || ""].filter(Boolean).join("\\n"),
+        },
+      }));
+    };
+    const unhandledRejection = (event: PromiseRejectionEvent) => {
+      const reason = event.reason;
+      receive(new CustomEvent("utoolity:issue-detected", {
+        detail: {
+          appName: document.title || "Utoolity Desktop",
+          errorName: reason instanceof Error ? reason.name : "Unhandled promise rejection",
+          details: reason instanceof Error ? reason.stack || reason.message : String(reason),
+        },
+      }));
+    };
     window.addEventListener("utoolity:issue-detected", receive);
-    return () => window.removeEventListener("utoolity:issue-detected", receive);
+    window.addEventListener("error", runtimeError);
+    window.addEventListener("unhandledrejection", unhandledRejection);
+    return () => {
+      window.removeEventListener("utoolity:issue-detected", receive);
+      window.removeEventListener("error", runtimeError);
+      window.removeEventListener("unhandledrejection", unhandledRejection);
+    };
   }, []);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
