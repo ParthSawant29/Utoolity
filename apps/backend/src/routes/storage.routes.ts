@@ -105,9 +105,10 @@ export default async function storageRoutes(app: FastifyInstance) {
       const entries = await readdir(target, { withFileTypes: true });
       return {
         entries: await Promise.all(entries.map(async (entry) => {
-          const entryPath = path.relative(storageRoot, path.join(target, entry.name));
-          const details = await stat(path.join(target, entry.name));
-          return { name: entry.name, path: entryPath, type: entry.isDirectory() ? "directory" : "file", size: details.size };
+          const absoluteEntry = path.join(target, entry.name);
+          const relativeToUser = path.relative(root, absoluteEntry).split(path.sep).join("/");
+          const details = await stat(absoluteEntry);
+          return { name: entry.name, path: relativeToUser ? `server/${relativeToUser}` : "server", type: entry.isDirectory() ? "directory" : "file", size: details.size };
         })),
       };
     } catch (error) {
