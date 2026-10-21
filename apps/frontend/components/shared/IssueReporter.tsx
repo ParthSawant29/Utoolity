@@ -17,7 +17,7 @@ export default function IssueReporter() {
   const [reported, setReported] = useState(false);
 
   useEffect(() => {
-    const receive = (event: Event) => {
+    const receive = (event: Event, showDialog = true) => {
       const detail = (event as CustomEvent<IssueDetected>).detail ?? {};
       setAppName(detail.appName?.slice(0, 120) || document.title || "Utoolity Desktop");
       setErrorName(detail.errorName?.slice(0, 160) || "Application error");
@@ -46,7 +46,7 @@ export default function IssueReporter() {
         window.sessionStorage.setItem("utoolity.notifications", JSON.stringify([notice]));
       }
       window.dispatchEvent(new CustomEvent("utoolity:notification", { detail: notice }));
-      setOpen(true);
+      if (showDialog) setOpen(true);
     };
     const runtimeError = (event: ErrorEvent) => {
       receive(new CustomEvent("utoolity:issue-detected", {
@@ -55,7 +55,7 @@ export default function IssueReporter() {
           errorName: event.message || "Unhandled JavaScript error",
           details: [event.filename, event.lineno ? `line ${event.lineno}` : "", event.error?.stack || ""].filter(Boolean).join("\\n"),
         },
-      }));
+      }), false);
     };
     const unhandledRejection = (event: PromiseRejectionEvent) => {
       const reason = event.reason;
@@ -65,7 +65,7 @@ export default function IssueReporter() {
           errorName: reason instanceof Error ? reason.name : "Unhandled promise rejection",
           details: reason instanceof Error ? reason.stack || reason.message : String(reason),
         },
-      }));
+      }), false);
     };
     const reopenIssue = (event: Event) => {
       const detail = (event as CustomEvent<IssueDetected>).detail ?? {};
