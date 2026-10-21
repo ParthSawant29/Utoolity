@@ -275,8 +275,8 @@ export default async function storageRoutes(app: FastifyInstance) {
 
   app.get<{ Querystring: { path?: string } }>("/storage/content", async (request, reply) => {
     try {
-      await getUser(request);
-      const target = resolveInside(storageRoot, request.query.path ?? "");
+      const user = await getUser(request);
+      const target = requestedTarget(user, request.query.path ?? "");
       const details = await stat(target);
       if (!details.isFile() || details.size > 5_000_000) {
         return reply.code(400).send({ message: "This file cannot be opened in Notepad." });
