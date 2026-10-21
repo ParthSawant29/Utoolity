@@ -15,11 +15,13 @@ import {
 import { api, ApiError } from "../../lib/api";
 import { useClock } from "../shared/useClock";
 import DesktopBackground from "../desktop/DesktopBackground";
+import { saveWallpaperPreference } from "../../lib/wallpapers";
 type LockProfile = {
   id: string;
   hostname: string;
   displayName: string;
   locked: boolean;
+  preferences?: Record<string, string>;
 };
 type LockProfileResponse = {
   user?: {
@@ -27,6 +29,7 @@ type LockProfileResponse = {
     hostname: string;
     displayName: string;
     role: "intern" | "admin";
+    preferences?: Record<string, string>;
   };
   requiresDeviceId?: boolean;
 };
@@ -48,6 +51,30 @@ type LockcardProps = {
 type LockscreenState = "sleep" | "locked";
 const HOSTNAME_STORAGE_KEY = "utoolity.hostname";
 const INACTIVITY_TIMEOUT_MS = 60_000;
+function applyProfilePreferences(preferences?: Record<string, string>) {
+  const root = document.documentElement;
+  if (preferences?.["utoolity.wallpaper"]) {
+    saveWallpaperPreference(preferences["utoolity.wallpaper"]);
+  } else {
+    saveWallpaperPreference("default.jpg");
+  }
+  const theme = preferences?.["utoolity.theme"];
+  if (theme === "dark" || theme === "light") {
+    localStorage.setItem("utoolity.theme", theme);
+    root.classList.toggle("dark", theme === "dark");
+    root.classList.toggle("light", theme === "light");
+    root.style.colorScheme = theme;
+  } else {
+    localStorage.removeItem("utoolity.theme");
+    const deviceTheme = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+    root.classList.toggle("dark", deviceTheme === "dark");
+    root.classList.toggle("light", deviceTheme === "light");
+    root.style.colorScheme = deviceTheme;
+  }
+  const grain = preferences?.["utoolity.grain"] ?? "none";
+  localStorage.setItem("utoolity.grain", grain);
+  root.dataset.grain = grain.toLowerCase();
+}
 function getGreeting(date: Date): string {
   const hour = date.getHours();
   if (hour >= 22 || hour < 5) return "STILL UP?";
@@ -168,6 +195,7 @@ function Lockcard({
         }
         if (!resolvedUser) throw new Error("The backend returned an empty profile.");
 
+        applyProfilePreferences(resolvedUser.preferences);
         window.localStorage.setItem("utoolity.cached-user", JSON.stringify(resolvedUser));
         window.localStorage.setItem("utoolity.authenticated-user-id", resolvedUser.id);
         window.localStorage.setItem(HOSTNAME_STORAGE_KEY, resolvedUser.hostname);
@@ -268,6 +296,7 @@ function Lockcard({
         setError("");
         return;
       }
+      applyProfilePreferences(response.user.preferences);
       window.localStorage.setItem(HOSTNAME_STORAGE_KEY, response.user.hostname);
       window.localStorage.setItem("utoolity.device-id", response.user.hostname);
       window.localStorage.setItem("utoolity.cached-user", JSON.stringify(response.user));
@@ -294,6 +323,7 @@ function Lockcard({
         { method: "POST", body: JSON.stringify({ hostname: hostId, displayName }) },
       );
       const user = response.user;
+      applyProfilePreferences(user.preferences);
       window.localStorage.setItem(HOSTNAME_STORAGE_KEY, user.hostname);
       window.localStorage.setItem("utoolity.device-id", user.hostname);
       window.localStorage.setItem("utoolity.cached-user", JSON.stringify(user));
