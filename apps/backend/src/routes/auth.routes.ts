@@ -8,7 +8,6 @@ type InternUser = {
   hostname: string;
   displayName: string;
   password: string;
-  macId: string;
   deviceId?: string;
   role: "intern" | "admin";
   preferences?: Record<string, string>;
@@ -62,6 +61,7 @@ const preferenceKeys = new Set([
 const defaultPreferences: Record<string, string> = {
   "utoolity.wallpaper": "default.jpg",
   "utoolity.icon-size": "large",
+  "utoolity.grain": "none",
 };
 
 function getSession(request: FastifyRequest): AuthSession {
@@ -151,7 +151,7 @@ function getDeviceId(request: FastifyRequest, fallback: string): string {
 async function updateSessionRecord(
   user: InternUser,
   values: Pick<SessionRecord, "active" | "activeApps" | "lastActivityAt">,
-  deviceId = user.macId,
+  deviceId = user.hostname,
 ): Promise<void> {
   const write = sessionUpdateQueue.then(async () => {
     const sessions = await readSessions();
@@ -304,7 +304,7 @@ async function establishSession(
   const session = getSession(request);
   session.userId = user.id;
   // After profile resolution, use the server-side assigned identity, not the lock-screen cache.
-  session.deviceId = user.deviceId ?? user.macId;
+  session.deviceId = user.deviceId ?? user.hostname;
   session.role = user.role;
   session.lastActivityAt = Date.now();
   await saveSession(request);
@@ -377,7 +377,7 @@ export default async function authRoutes(app: FastifyInstance) {
     const activeApps = request.body && Array.isArray(request.body.openApps)
       ? request.body.openApps
       : [];
-    const deviceId = getDeviceId(request, user.deviceId ?? user.macId);
+    const deviceId = getDeviceId(request, user.deviceId ?? user.hostname);
     const currentSessions = await readSessions();
     const existing = currentSessions[`${user.id}:${deviceId}`] ?? currentSessions[user.id];
     await updateSessionRecord(user, {
@@ -399,7 +399,7 @@ export default async function authRoutes(app: FastifyInstance) {
       const user = findById(users, session.userId);
       if (user) {
         const sessions = await readSessions();
-        const deviceId = getDeviceId(request, user.deviceId ?? user.macId);
+        const deviceId = getDeviceId(request, user.deviceId ?? user.hostname);
         const existing = sessions[`${user.id}:${deviceId}`] ?? sessions[user.id];
         await updateSessionRecord(user, {
           active: true,
@@ -443,7 +443,7 @@ export default async function authRoutes(app: FastifyInstance) {
           active: true,
           activeApps: [],
           lastActivityAt: Date.now(),
-        }, user.deviceId ?? user.macId);
+        }, user.deviceId ?? user.hostname);
 
         return {
           user: publicUser(user),
@@ -470,7 +470,7 @@ export default async function authRoutes(app: FastifyInstance) {
             active: false,
             activeApps: [],
             lastActivityAt: Date.now(),
-          }, user.deviceId ?? user.macId);
+          }, user.deviceId ?? user.hostname);
         }
       }
       await destroySession(request);
@@ -694,7 +694,7 @@ export default async function authRoutes(app: FastifyInstance) {
           active,
           activeApps: existing?.activeApps ?? [],
           lastActivityAt: active ? Date.now() : existing?.lastActivityAt ?? Date.now(),
-        }, deviceId === "pending-device" ? user.macId : deviceId);
+        }, deviceId === "pending-device" ? user.hostname : deviceId);
       } catch (error) {
         request.log.error(error, "Unable to persist WebSocket activity");
       }
@@ -1112,6 +1112,44 @@ export default async function authRoutes(app: FastifyInstance) {
     socket.send(JSON.stringify({ type: "connected" }));
   });
 
+  app.post<{
+    Body: { hostname?: string; displayName?: string };
+  }>("/lockscreen/register", async (request, reply) => {
+    const hostname = typeof request.body?.hostname === "string" ? request.body.hostname.trim() : "";
+    const displayName = typeof request.body?.displayName === "string" ? request.body.displayName.trim() : "";
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]{1,127}$/.test(hostname)) {
+      return reply.code(400).send({ message: "Enter a valid device host ID (letters, numbers, dots, underscores, or hyphens)." });
+    }
+    if (displayName.length < 2 || displayName.length > 80) {
+      return reply.code(400).send({ message: "Enter your name (2–80 characters)." });
+    }
+    try {
+      const users = await readUsers();
+      const existing = findByHostname(users, hostname);
+      if (existing) {
+        await establishSession(request, existing);
+        await updateSessionRecord(existing, { active: true, activeApps: [], lastActivityAt: Date.now() }, existing.deviceId ?? existing.hostname);
+        return { success: true, user: publicUser(existing), existing: true };
+      }
+      const user: InternUser = {
+        id: hostname,
+        hostname,
+        displayName,
+        password: "",
+        deviceId: hostname,
+        role: "intern",
+        preferences: { ...defaultPreferences },
+      };
+      await writeUsers([...users, user]);
+      await establishSession(request, user);
+      await updateSessionRecord(user, { active: true, activeApps: [], lastActivityAt: Date.now() }, hostname);
+      return reply.code(201).send({ success: true, user: publicUser(user), existing: false });
+    } catch (error) {
+      request.log.error(error, "Unable to register this device profile");
+      return reply.code(500).send({ message: "Unable to save this device profile." });
+    }
+  });
+
   // Resolve the lock-screen identity from the persistent device ID first.
   // A previously assigned hostname remains supported for existing installs.
   app.get<{
@@ -1185,7 +1223,7 @@ export default async function authRoutes(app: FastifyInstance) {
           active: true,
           activeApps: [],
           lastActivityAt: Date.now(),
-        }, user.deviceId ?? user.macId);
+        }, user.deviceId ?? user.hostname);
 
         return {
           success: true,
