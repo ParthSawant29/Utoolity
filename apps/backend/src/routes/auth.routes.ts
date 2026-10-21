@@ -254,7 +254,7 @@ async function readUsers(): Promise<InternUser[]> {
   // any supported per-profile settings. Future database migration can consume
   // this normalized shape without another manual cleanup.
   if (JSON.stringify(original) !== JSON.stringify(users)) {
-    await writeFile(usersFilePath, `${JSON.stringify({ users }, null, 2)}\\n`, "utf8");
+    await writeFile(usersFilePath, `${JSON.stringify({ users }, null, 2)}\n`, "utf8");
   }
   return users;
 }
