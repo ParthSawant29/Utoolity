@@ -388,6 +388,29 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
   };
 
   useEffect(() => {
+    // Persist preference changes against the authenticated profile, not only
+    // localStorage. This makes wallpaper/theme/grain survive clearing browser
+    // caches and switching profiles on the same machine.
+    const persistPreference = (event: Event) => {
+      const detail = (event as CustomEvent<{ key?: string; value?: string }>).detail;
+      if (!detail?.key || typeof detail.value !== "string") return;
+      const allowed = new Set([
+        "utoolity.wallpaper",
+        "utoolity.lockscreen",
+        "utoolity.animations",
+        "utoolity.grain",
+        "utoolity.theme",
+        "utoolity.icon-size",
+      ]);
+      if (!allowed.has(detail.key)) return;
+      void api("/api/auth/preferences", {
+        method: "PATCH",
+        body: JSON.stringify({ [detail.key]: detail.value }),
+      }).catch((error) => {
+        console.warn("Unable to persist profile preference.", detail.key, error);
+      });
+    };
+    window.addEventListener("utoolity:preference-changed", persistPreference);
     const root = document.documentElement;
     const values = [
       ["lockscreen", "utoolity.lockscreen"],
@@ -453,6 +476,7 @@ export default function Desktop({ onSleep, onLock }: DesktopProps) {
         // The desktop can continue with locally cached preferences.
       });
 
+    return () => window.removeEventListener("utoolity:preference-changed", persistPreference);
   }, []);
 
   return (
