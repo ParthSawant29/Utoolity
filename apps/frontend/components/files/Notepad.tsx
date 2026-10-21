@@ -9,7 +9,7 @@ export default function Notepad({ initialPath }: { initialPath?: string }) {
   const [value, setValue] = useState("");
   const [message, setMessage] = useState("");
   const [saveAsOpen, setSaveAsOpen] = useState(false);
-  const [saveAsPath, setSaveAsPath] = useState(initialPath ?? "untitled.txt");
+  const [saveAsPath, setSaveAsPath] = useState(initialPath ?? "server/untitled.txt");
 
   useEffect(() => {
     const query = initialPath ?? new URLSearchParams(window.location.search).get("path");
@@ -51,7 +51,7 @@ export default function Notepad({ initialPath }: { initialPath?: string }) {
       <header className="flex items-center gap-2">
         <div className="min-w-0 flex-1 truncate rounded-xl border border-input bg-muted/40 px-3 py-2 text-sm" title={path}>{path.split("/").filter(Boolean).at(-1) ?? "Untitled"}</div>
         <button type="button" onClick={() => void save()} className="rounded-xl bg-primary px-4 py-2 text-sm font-bold text-primary-foreground">Save</button>
-        <button type="button" onClick={() => { setSaveAsPath(path || "untitled.txt"); setSaveAsOpen(true); }} className="rounded-xl border border-border px-4 py-2 text-sm font-bold">Save as</button>
+        <button type="button" onClick={() => { setSaveAsPath(path || "server/untitled.txt"); setSaveAsOpen(true); }} className="rounded-xl border border-border px-4 py-2 text-sm font-bold">Save as</button>
         <button type="button" onClick={() => { setPath(""); setValue(""); setMessage(""); }} className="rounded-xl border border-border px-4 py-2 text-sm font-bold">New</button>
       </header>
       <textarea value={value} onChange={(event) => setValue(event.target.value)} className="min-h-0 flex-1 resize-none rounded-2xl border border-input bg-background p-4 font-mono text-sm outline-none focus:ring-2 focus:ring-ring" spellCheck={false} />
