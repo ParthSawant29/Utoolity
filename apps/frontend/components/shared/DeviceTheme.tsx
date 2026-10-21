@@ -4,10 +4,16 @@ import { useEffect } from "react";
 
 function applyDeviceTheme(mediaQuery: MediaQueryList) {
   const savedTheme = localStorage.getItem("utoolity.theme");
+  // A stored explicit preference wins. Follow OS changes only when no valid
+  // explicit preference exists, so lock-screen and desktop stay in sync.
   const theme =
-    savedTheme === "dark" || (savedTheme !== "light" && mediaQuery.matches)
+    savedTheme === "dark"
       ? "dark"
-      : "light";
+      : savedTheme === "light"
+        ? "light"
+        : mediaQuery.matches
+          ? "dark"
+          : "light";
   const root = document.documentElement;
 
   root.classList.toggle("dark", theme === "dark");
