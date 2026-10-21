@@ -312,12 +312,10 @@ function Lockcard({
   const toggleFullscreen = async () => {
     try {
       if (!document.fullscreenElement) {
-        // Fullscreen the document root rather than the lock card itself.
-        // Fullscreening only this section promotes it to the browser top layer,
-        // leaving the wallpaper and the custom cursor (siblings of the card)
-        // outside that layer; Chromium then shows a black background and hides
-        // the custom cursor.
-        await document.documentElement.requestFullscreen();
+        // Fullscreen the lock-screen shell so the wallpaper remains visible
+        // inside the browser's top layer. The shell owns the wallpaper through
+        // its CSS background; keep the desktop cursor overlay above the card.
+        await cardRef.current?.requestFullscreen();
       } else {
         await document.exitFullscreen();
       }
@@ -337,7 +335,7 @@ function Lockcard({
     <section
       ref={cardRef}
       _aria-label_="Lock screen"
-      className={`lockscreen-shell fixed inset-0 z-50 isolate flex h-dvh min-h-dvh w-full flex-col items-center justify-center overflow-hidden rounded-none text-foreground ${
+      className={`lockscreen-shell fixed inset-0 z-50 isolate flex h-dvh min-h-dvh w-full flex-col items-center justify-center overflow-hidden rounded-none bg-black text-foreground ${
         leaving ? "lockscreen-exit" : "lockscreen-enter"
       }`}
     >
