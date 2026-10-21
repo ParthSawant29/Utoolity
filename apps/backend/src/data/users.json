@@ -7,9 +7,10 @@
       "password": "12345678",
       "role": "intern",
       "preferences": {
-        "utoolity.wallpaper": "new.jpg",
+        "utoolity.wallpaper": "Default",
         "utoolity.icon-size": "large",
-        "utoolity.theme": "dark"
+        "utoolity.theme": "dark",
+        "utoolity.grain": "none"
       },
       "deviceId": "L-MHP-IXMT2"
     },
@@ -20,7 +21,7 @@
       "password": "12345678",
       "role": "intern",
       "preferences": {
-        "utoolity.wallpaper": "default.jpg",
+        "utoolity.wallpaper": "Default",
         "utoolity.icon-size": "large",
         "utoolity.theme": "light",
         "utoolity.grain": "Soft"
@@ -34,8 +35,10 @@
       "password": "guest",
       "role": "intern",
       "preferences": {
-        "utoolity.wallpaper": "default.jpg",
-        "utoolity.icon-size": "large"
+        "utoolity.wallpaper": "Default",
+        "utoolity.icon-size": "large",
+        "utoolity.theme": "device",
+        "utoolity.grain": "none"
       },
       "deviceId": "guest-intern"
     }
