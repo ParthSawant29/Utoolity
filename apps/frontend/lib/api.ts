@@ -148,14 +148,10 @@ async function performApi<T>(
     // A protected API returning 401 means the server-side session is gone.
     // Notify the desktop shell so cached profile UI cannot masquerade as a
     // live session. Network errors do not reach this branch and remain offline-safe.
-    const sessionProtectedPaths = new Set([
-      "/api/auth/me",
-      "/api/auth/preferences",
-      "/api/auth/workspace",
-      "/api/auth/activity",
-      "/api/auth/collaboration/users",
-    ]);
-    if (response.status === 401 && sessionProtectedPaths.has(path.split("?")[0])) {
+    // Only the dedicated session-verification endpoint may invalidate the
+    // desktop. Background requests (such as preference writes) can race with
+    // session establishment or fail independently; they must not force logout.
+    if (response.status === 401 && path.split("?")[0] === "/api/auth/me") {
       window.dispatchEvent(new CustomEvent("utoolity:session-invalid", {
         detail: { path, status: response.status },
       }));
