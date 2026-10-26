@@ -178,9 +178,11 @@ export default function Home() {
             : "checking";
 
       if (active && cachedAuthenticated && cachedUserId) {
+        // Keep the shell in its checking state until the server confirms the
+        // session. Mounting Desktop from stale localStorage here can trigger
+        // protected preference writes before /auth/me rejects an expired session.
         const lastActivity = Number(localStorage.getItem(LAST_ACTIVITY_KEY) ?? Date.now());
         lastActivityRef.current = Number.isFinite(lastActivity) ? lastActivity : Date.now();
-        setShellState(cachedShellState);
       }
 
       try {
